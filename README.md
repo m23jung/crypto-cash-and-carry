@@ -53,7 +53,6 @@ Details: [Phase 1](docs/phase1.md), [Phase 2](docs/phase2.md), [Phase 3](docs/ph
 | | |
 |---|---|
 | [docs/paper.md](docs/paper.md) | **The paper**: question, data, protocol, results, limitations |
-| [docs/interview_notes.md](docs/interview_notes.md) | Pitch, key numbers, likely questions and answers |
 | [docs/plan.md](docs/plan.md) | Research questions, hypothesis, background, data, phases, go/no-go rule, pivot plan |
 | [docs/decisions.md](docs/decisions.md) | Dated log of every analysis decision |
 | [docs/phase1.md](docs/phase1.md) | Phase 1 findings and interpretation |
