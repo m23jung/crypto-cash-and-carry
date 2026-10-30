@@ -2,6 +2,12 @@
 
 Newest first. Every analysis choice that could change a result is recorded here with its date.
 
+- **2026-10-30** Extension A spec fixed before analysis, with a matched Binance–Bybit baseline (same
+  coin-windows) and base-tier taker fees for Hyperliquid (0.045%) and dYdX (0.050%). Result: prediction
+  HOLDS (Hyperliquid 2 of 3 years, dYdX 3 of 3). dYdX found to have no funding floor or dead zone, so its
+  gaps are largely mechanical; a floor-adjusted robustness check (added after results, not part of the
+  decision) confirmed this. Only the Hyperliquid comparison is presented as evidence about frictions.
+
 - **2026-10-30** Extension B (stock perps) removed from the paper and README at the author's request; code,
   report and write-up kept in the repo as exploratory work.
 

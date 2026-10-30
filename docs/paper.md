@@ -58,6 +58,7 @@ mechanics of perp pricing are set out by He, Manela, Ross and von Wachter (2022)
    with every decision rule fixed before the test and a deflated Sharpe across all 16 variants.
 5. A capital-structure sensitivity showing the trade's break-even margin factor and the limited value
    of leverage, checked against venues' published margin parameters.
+6. A matched test that the no-arbitrage band widens with transfer frictions, using an on-chain venue.
 
 ## 2. Background: how funding works
 
@@ -248,6 +249,26 @@ doubling them costs about 0.5%; for the MILP the same changes move the return fr
 and +0.31% (and to +1.06% at a quarter of base costs). Cheaper costs made cost-aware selection
 *worse*, because its cost-scaled entry hurdle had been acting as a quality filter against small coins.
 
+### 5.6 Larger frictions widen the band (on-chain venues)
+
+If limits to arbitrage set the band, it should be wider where moving capital is harder. Hyperliquid, an
+on-chain venue with the same funding design as Binance (a 0.01% floor), provides that test from late 2023:
+capital moves there by bridging stablecoins rather than an exchange withdrawal. On matched coin-windows:
+
+| | Binance–Hyperliquid | Binance–Bybit (matched) |
+|---|---|---|
+| Median \|gap\| (bp per 8h) | 0.62 | 0.32 |
+| 90th percentile \|gap\| | 3.40 | 1.63 |
+| Top-quintile gap collected over 7 days | 46 bp | 13 bp |
+| Top-quintile trades beating the taker round trip | 69% | 24% |
+
+Gaps are about twice as wide, close more slowly in 2025–26, and, unlike the centralised pair, the largest
+of them cleared trading fees most of the time, before the bridging costs and on-chain risks that keep
+them open. The pre-registered prediction (wider *and* slower-closing gaps than Binance–Bybit in at least
+2 of 3 years, for both on-chain pairs) holds. The band is narrowing, though: the top-quintile gap fell from
+54 bp (2024) to 14 bp (2026). A second on-chain venue, dYdX, also passes the test, but its funding has no
+floor or dead zone, so its gaps are largely mechanical and are not counted as evidence about frictions.
+
 ## 6. Discussion
 
 The carry that survived 2021 is a **financing spread**: funding at or near an administered floor,
@@ -301,8 +322,9 @@ of the cost of acting on it; and neither selection nor a constrained optimiser b
 ETH carry passively. Under realistic portfolio margin that passive position earned +1.9% a year over
 T-bills. The returns were decided by capital structure and costs rather than by signals.
 
-**Future work.** On-chain venues (Hyperliquid, dYdX): if limits to arbitrage set the band, it should be
-wider between an on-chain venue and a centralised one, where moving capital is slower and costlier.
+Where moving capital is harder, the band is wider: Binance–Hyperliquid gaps are about twice the
+Binance–Bybit gaps on the same coins, and their largest gaps cleared trading fees, consistent with the
+frictions fees do not capture. That band has been narrowing as arbitrage capital moves on-chain.
 
 ## References
 

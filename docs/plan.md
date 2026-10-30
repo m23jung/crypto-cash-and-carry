@@ -361,7 +361,7 @@ forecast); S1 at 1.05. Sensitivity, not counted: 4b-P at k = 0.5 transaction cos
 **Decision rule.** Phase 4b adds value if 4b-P's Sharpe beats S1-at-1.05's with paired-bootstrap
 P(difference ≤ 0) < 0.10 **and** 4b-P is positive in at least 3 of the 5 years.
 
-## Extension A spec: does the no-arbitrage band widen with frictions? (DRAFT 2026-10-30, pending review)
+## Extension A spec: does the no-arbitrage band widen with frictions? (fixed 2026-10-30, before any analysis)
 
 **Question.** Phase 1 found Binance–Bybit funding gaps sit inside the cost band. If frictions set the
 band, gaps between a centralised venue and an on-chain one (Hyperliquid, dYdX), where moving capital
@@ -375,8 +375,15 @@ listed on both venues of the pair. **Grid.** Hourly funding summed into the same
 half-life (pooled AR(1)), funding correlation, and the Phase 1 trade (top quintile of the trailing 3-day
 gap, collected over 7 days) against each pair's taker round trip (fees to be verified from venue docs).
 
+**Matched baseline.** Each on-chain pair is compared with Binance–Bybit on the *same* coin-windows
+(coin in the universe, funding present on all three venues), so coin mix cannot drive the result.
+
+**Costs (base-tier taker, checked 2026-10-30):** Binance 0.05%, Bybit 0.055%, Hyperliquid 0.045%, dYdX
+0.050% per leg; four-leg round trips 0.21% (Binance–Bybit), 0.19% (Binance–Hyperliquid), 0.20%
+(Binance–dYdX). Bridging and transfer costs are not included (they are the friction being tested).
+
 **Pre-registered prediction.** Both CEX–DEX pairs have a larger median |gap| **and** a longer half-life
-than Binance–Bybit in at least 2 of the 3 years. Otherwise frictions do not visibly widen the band.
+than matched Binance–Bybit in at least 2 of the 3 years. Otherwise frictions do not visibly widen the band.
 
 **Caveat to report.** On-chain venues use different funding formulas and caps, so part of any gap can be
 mechanical rather than an arbitrage opportunity.

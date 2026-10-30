@@ -17,6 +17,9 @@ it. **They don't, after costs: the outcome is decided by capital structure, not 
 
 - **Venues are tightly integrated.** Binance–Bybit funding correlation is 0.95 since 2023, and gaps
   halve in about 4.5 hours. Cross-venue gaps mostly sit inside the round-trip cost band.
+- **The band widens with frictions.** Against Hyperliquid, an on-chain venue where capital moves by
+  bridge, gaps are about twice as wide as Binance–Bybit on the same coins, and their largest gaps
+  cleared trading fees 69% of the time (vs 24%), before bridging costs. That band is narrowing.
 - **The 0.01% floor dominates.** The median coin pays *exactly* 0.01% per 8h (10.95% a year) in most
   years; excess over T-bills ranged from +10.9% (2021) to about +1% (2026).
 - **Small-coin funding has turned negative and fat-tailed** (2025–26): squeezes on new listings
@@ -59,6 +62,7 @@ Details: [Phase 1](docs/phase1.md), [Phase 2](docs/phase2.md), [Phase 3](docs/ph
 | [docs/phase4.md](docs/phase4.md) | Phase 4 findings and interpretation |
 | [docs/phase4b.md](docs/phase4b.md) | Phase 4b: churn controls and realistic margin |
 | [docs/sensitivity.md](docs/sensitivity.md) | Margin, leverage and transaction-cost sensitivity |
+| [docs/extension_a.md](docs/extension_a.md) | Extension A: on-chain venues and the width of the no-arbitrage band |
 | [reports/](reports/) | Generated tables (one folder per phase) |
 
 ## Layout
@@ -82,7 +86,8 @@ research/       one runnable script per step
   phase4b_allocator.py
   sensitivity.py
   build_extensions.py   data for the extensions
-  extension_b_tradfi.py
+  extension_a_onchain.py
+  extension_b_tradfi.py   (exploratory, not in the results)
   figures.py
 reports/        generated output, by phase
 docs/           plan, decisions, phase write-ups
