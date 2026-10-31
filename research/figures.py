@@ -67,8 +67,15 @@ def main():
     rows = pd.concat({v: investable_rows(p) for v, p in panels.items()}, names=["venue"])
     fc7, fc30 = walk_forward(rows), walk_forward(rows, target="target_30d")
 
-    ledgers = {"Passive BTC+ETH": backtest(panels, fc7, tbill, BASELINE),
-               "S3 cost-aware top-5": backtest(panels, fc7, tbill, "S3 cost-aware top-5")}
+    ledgers = {"Passive BTC+ETH": backtest(panels, fc7, tbill, BASELINE)}
+    factory, model, slots = STRATEGIES["S3 cost-aware top-5"]
+    s3_logs = {v: {} for v in VENUES}
+    s3 = [run(panels[v], fc7[model].xs(v, level="venue"), factory(COSTS[v]), slots, NAV / 2, tbill, COSTS[v], START,
+              log=s3_logs[v]) for v in VENUES]
+    ledgers["S3 cost-aware top-5"] = sum(b[["equity_start", "pnl", "n_held", "liquidations", "funding", "basis",
+                                            "unhedged", "costs", "liquidation", "cash", "traded"]]
+                                         for b in s3).assign(tbill=s3[0]["tbill"])
+    trades = {"S3 cost-aware top-5": pd.concat([s3_logs[v]["trades"].assign(venue=v) for v in VENUES])}
     cross = {v: dataclasses.replace(c, margin_buffer=0.10) for v, c in COSTS.items()}
     books = [run(panels[v], pd.Series(dtype=float), STRATEGIES[BASELINE][0](cross[v]), 2, NAV / 2, tbill, cross[v],
                  START) for v in VENUES]
@@ -78,6 +85,8 @@ def main():
     print("running MILP")
     milp = run_joint(panels, make_allocator(fc30["M3_regression"], panels, tbill, Params()), NAV, tbill, COSTS,
                      None, START)
+    trades["MILP allocator"], positions = milp.attrs["trades"], milp.attrs["positions"]
+    milp.attrs = {}  # keep logs out of pandas metadata before combining frames
     ledgers["MILP allocator"] = milp
     order = ["Passive, cross-margin", "Passive BTC+ETH", "MILP allocator", "S3 cost-aware top-5"]
     colors = dict(zip(order, SERIES, strict=True))
@@ -93,6 +102,21 @@ def main():
     ax.margins(x=0.01)
     ax.set_xlim(right=ax.get_xlim()[1] + 230)
     label_line_ends(ax, cum, colors)
+    events = []  # the largest one-day losses: short-perp liquidations in price spikes
+    for n, tr in trades.items():
+        daily = daily_excess(ledgers[n]) * 100
+        liq = tr[tr["kind"] == "liquidation"].assign(day=lambda d: d["ts"].dt.floor("D"))
+        for d, loss in daily[daily <= -0.5].nsmallest(3).items():
+            hit = liq[(liq["day"] >= d - pd.Timedelta(days=1)) & (liq["day"] <= d)]["coin"].unique()
+            events.append((d, n, loss, f"{'/'.join(hit)} short liquidated" if len(hit) else "one-day basis move"))
+    key = []
+    for i, (d, n, loss, text) in enumerate(sorted(events), 1):
+        y = cum[n].loc[d]
+        ax.plot([d], [y], "o", ms=13, mfc=SURFACE, mec=colors[n], mew=1.5, zorder=6)
+        ax.text(d, y, str(i), ha="center", va="center", fontsize=7.5, fontweight="bold", color=INK, zorder=7)
+        key.append(f"{i}  {d:%b %Y}  {text} ({n.split(' ')[0]}, {loss:+.1f}% that day)")
+    ax.text(0.99, 0.03, "\n".join(key), transform=ax.transAxes, ha="right", va="bottom", fontsize=7.5,
+            color=INK2, bbox={"boxstyle": "round,pad=0.4", "fc": SURFACE, "ec": GRID})
     ax.legend(loc="upper left", ncols=2)
     save(fig, "1_cumulative_excess_return.png")
 
@@ -140,7 +164,7 @@ def main():
     save(fig, "3_funding_vs_capital_cost.png")
 
     # 4. MILP positions over time.
-    pos = milp.attrs["positions"]
+    pos = positions
     pos["week"] = pos["ts"].dt.tz_localize(None).dt.to_period("W").dt.start_time
     by_coin = pos.groupby(["week", "coin"])["notional"].mean().unstack(fill_value=0) / 1e3
     top = by_coin.sum().nlargest(15).index
@@ -170,7 +194,7 @@ def main():
     save(fig, "4_milp_positions.png")
 
     # 5. MILP trading by type.
-    tr = milp.attrs["trades"]
+    tr = trades["MILP allocator"].copy()
     tr["kind"] = tr["kind"].replace({"open": "Opens and closes", "close": "Opens and closes",
                                      "resize": "Resizes", "liquidation": "Liquidations"})
     monthly = tr.groupby([tr["ts"].dt.tz_localize(None).dt.to_period("M").dt.start_time, "kind"])["notional"] \
@@ -190,5 +214,33 @@ def main():
     save(fig, "5_milp_trading.png")
 
 
+def margin_figure() -> None:
+    """Figure 7: passive BTC+ETH excess return vs margin factor (read from reports/sensitivity/report.md)."""
+    text = Path("reports/sensitivity/report.md").read_text().split("## B.")[0]
+    rows = [r.split("|") for r in text.splitlines()
+            if r.strip().startswith("|") and r.split("|")[1].strip()[:1].isdigit()]
+    m = pd.DataFrame({"margin": [float(r[1]) for r in rows], "excess": [float(r[2]) for r in rows],
+                      "sharpe": [float(r[3]) for r in rows]})
+    fig, ax = plt.subplots(figsize=(9, 4.6))
+    ax.axvspan(1.0, 1.05, color=SERIES[2], alpha=0.12, lw=0)
+    ax.text(1.005, m["excess"].min() * 0.95, "portfolio\nmargin", fontsize=8.5, color=INK2)
+    ax.axvline(1.5, color=MUTED, lw=1, ls=(0, (4, 3)))
+    ax.text(1.51, m["excess"].min() * 0.95, "separate accounts,\n50% buffer", fontsize=8.5, color=INK2)
+    ax.axhline(0, color=AXIS, lw=1)
+    ax.plot(m["margin"], m["excess"], color=SERIES[0], marker="o", ms=6, mec=SURFACE, mew=1.5)
+    for _, r in m.iterrows():
+        ax.annotate(f"{r['excess']:+.2f}%", (r["margin"], r["excess"]), xytext=(6, 6), textcoords="offset points",
+                    fontsize=8, color=INK)
+    be = np.interp(0, m["excess"][::-1], m["margin"][::-1])
+    ax.plot([be], [0], "o", ms=7, color=NEG, mec=SURFACE, mew=1.5)
+    ax.annotate(f"break-even ≈ {be:.2f}", (be, 0), xytext=(-110, -22), textcoords="offset points", fontsize=9,
+                color=INK)
+    ax.set_xlabel("margin factor: capital tied up per $1 of notional")
+    ax.set_ylabel("excess return over T-bills, % a year")
+    ax.set_title("Passive BTC+ETH carry vs capital tied up (2022–2026, constant exposure)")
+    save(fig, "7_margin_sensitivity.png")
+
+
 if __name__ == "__main__":
+    margin_figure()
     main()

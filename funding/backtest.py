@@ -90,6 +90,7 @@ class Book:
         self.last_p: dict[str, float] = {}
         self.unhedged: dict[str, float] = {}  # spot left after a liquidation, sold next window
         self.name, self.trades = name, []  # trade log: (ts, venue, coin, kind, notional)
+        self.coin_pnl: list[tuple] = []  # (ts, venue, coin, funding, basis) per held coin and window
         self.unpriced_since: dict[str, pd.Timestamp] = {}
 
     def _priced(self, c) -> bool:
@@ -112,8 +113,11 @@ class Book:
         for c in list(self.q):
             if self._priced(c):
                 s, p = self.s_t[c], self.p_t[c]
-                rec["funding"] += self.q[c] * p * (f_t.get(c, 0.0) if np.isfinite(f_t.get(c, np.nan)) else 0.0)
-                rec["basis"] -= self.q[c] * ((p - s) - (self.last_p[c] - self.last_s[c]))
+                fund = self.q[c] * p * (f_t.get(c, 0.0) if np.isfinite(f_t.get(c, np.nan)) else 0.0)
+                basis = -self.q[c] * ((p - s) - (self.last_p[c] - self.last_s[c]))
+                rec["funding"] += fund
+                rec["basis"] += basis
+                self.coin_pnl.append((t, self.name, c, fund, basis))
                 self.last_s[c], self.last_p[c] = s, p
         for c in list(self.q):  # delisted or long-unpriced: close at the last known prices
             if self._priced(c):
@@ -228,7 +232,7 @@ class Book:
 
 
 def run(panel: dict, forecast: pd.Series, rule: Rule, slots: int, capital: float, tbill: pd.Series,
-        costs: Costs, start: str = "2022-01-01") -> pd.DataFrame:
+        costs: Costs, start: str = "2022-01-01", log: dict | None = None) -> pd.DataFrame:
     """Simulate one venue's book with a Phase 3 rule. ``forecast`` is indexed (ts, coin).
 
     Each new position gets one slot: equity / (1 + margin buffer) / ``slots`` of notional (capped by
@@ -250,6 +254,9 @@ def run(panel: dict, forecast: pd.Series, rule: Rule, slots: int, capital: float
             book.execute_slots(target, slots)
         rows.append(book.finish(tb))
         target = rule(t, set(book.q), book.inv, fc_by_t.get(t, pd.Series(dtype=float)), tb)
+    if log is not None:  # optional per-coin P&L and trade logs (kept out of the ledger's metadata)
+        log["coin_pnl"] = pd.DataFrame(book.coin_pnl, columns=["ts", "venue", "coin", "funding", "basis"])
+        log["trades"] = pd.DataFrame(book.trades, columns=["ts", "venue", "coin", "kind", "notional"])
     return pd.DataFrame(rows).set_index("ts")
 
 
@@ -300,6 +307,8 @@ def run_joint(panels: dict, decide: Allocator, nav: float, tbill: pd.Series, cos
             pending = decide(t, books, transit)
     out = pd.DataFrame(rows).set_index("ts")
     out.attrs["positions"] = pd.DataFrame(snapshots, columns=["ts", "venue", "coin", "notional"])
+    out.attrs["coin_pnl"] = pd.DataFrame([x for b in books.values() for x in b.coin_pnl],
+                                         columns=["ts", "venue", "coin", "funding", "basis"])
     out.attrs["trades"] = pd.DataFrame([x for b in books.values() for x in b.trades],
                                        columns=["ts", "venue", "coin", "kind", "notional"])
     return out

@@ -1,356 +1,431 @@
 # Crypto Cash-and-Carry: Capital Efficiency in the Spot–Perpetual Basis Trade
 
-### Limits to arbitrage, forecastability and the cost of capital, 2021–2026
+## Summary
 
-Michael Jung · October 2026 · Code and data pipeline: this repository
+**Question.** Buying spot crypto and shorting the perpetual future ("perp") collects the perp's funding
+rate with no price exposure: economically, a secured loan of cash. Can the trade be improved by
+arbitraging funding across exchanges, by forecasting funding, or by optimising which coins to hold?
 
----
+**Approach.** Free exchange data for 274 coins on Binance and Bybit (2021–2026, including later-delisted
+coins), plus two on-chain venues (Hyperliquid, dYdX) from 2023. Every test had its decision rule written
+down before it ran, and every variant is counted when judging statistical significance.
 
-## Abstract
+**Findings.**
 
-Perpetual futures pay a periodic *funding rate* that transfers money from leveraged longs to shorts
-when the contract trades above spot. A long-spot / short-perp position collects that funding with
-no price exposure, which makes it economically a secured loan: cash lent against crypto collateral.
-Using free exchange data for 274 coins on Binance and Bybit from January 2021 to October 2026,
-including coins later delisted, I test four questions under pre-registered decision rules and a
-multiple-testing correction across every variant run.
-(1) **Cross-venue arbitrage:** funding on the two venues is 0.95 correlated since 2023 and gaps decay
-with a half-life of about 4.5 hours; gaps collectable after costs were too rare to trade (pre-registered
-NO-GO). (2) **Carry levels:** the exchange-fixed funding floor of 0.01% per 8 hours (10.95% a year) did
-not move while T-bills rose from 0% to 5%, so carry over cash compressed from about 11% in 2021 to
-1–6% afterwards. (3) **Forecastability:** funding is forecastable across coins out of sample (rank IC
-about 0.5), but the gain from selection is about the size of the cost of rotating into it.
-(4) **Allocation:** neither cost-aware selection nor a daily mixed-integer allocator (HiGHS) beat
-passive BTC+ETH carry after costs. The decisive variable is capital structure: the trade breaks even
-at about 1.4× capital per $1 of notional, and under realistic portfolio margin (about 1.05×) passive
-BTC+ETH earned +1.9% a year over T-bills. The carry that survives is a financing spread, and it is
-captured by cheap balance sheet rather than by signals.
-
----
-
-## 1. Introduction
-
-Perpetual futures ("perps") are the main instrument for leveraged crypto exposure. With no expiry to
-pull their price to spot, exchanges instead charge a *funding rate* every 1–8 hours. When leveraged
-demand pushes the perp above spot, longs pay shorts. A trader who buys spot and shorts the perp is
-price-neutral and collects that payment: the crypto analogue of a Treasury cash-and-carry trade
-funded in repo.
-
-The trade looks like free money in bull markets, when funding has exceeded 30% a year. This paper
-asks what is left once funding is measured against the cost of cash, trading costs and the capital
-the position ties up, and whether forecasting or optimisation can improve on simply holding it.
-
-The framing borrows from the literature on limits to arbitrage. Covered-interest-parity deviations
-persist because bank balance sheets are costly (Du, Tepper and Verdelhan, 2018); arbitrage is limited
-whenever it needs scarce capital (Shleifer and Vishny, 1997). Carry in general earns a premium for
-bearing crash risk (Koijen, Moskowitz, Pedersen and Vrugt, 2018), and crypto carry in particular has
-been large and crash-prone (Christin et al., 2022; Schmeling, Schrimpf and Todorov, 2023). The
-mechanics of perp pricing are set out by He, Manela, Ross and von Wachter (2022).
-
-**Contributions.**
-1. A survivorship-free, two-venue dataset of funding, spot and perp prices for the point-in-time top 30
-   coins, 2021–2026, built entirely from free sources, with stock and commodity perps excluded by rule.
-2. Evidence that the two largest venues are tightly integrated: cross-venue funding gaps sit inside
-   the round-trip cost band.
-3. A decomposition of why carry compressed after 2021, separating mechanical (fixed floor vs rising
-   rates) from behavioural causes (leverage demand, arbitrage capital).
-4. Out-of-sample tests of funding forecasts and of a cost-aware MILP allocator against passive carry,
-   with every decision rule fixed before the test and a deflated Sharpe across all 16 variants.
-5. A capital-structure sensitivity showing the trade's break-even margin factor and the limited value
-   of leverage, checked against venues' published margin parameters.
-6. A matched test that the no-arbitrage band widens with transfer frictions, using an on-chain venue.
-
-## 2. Background: how funding works
-
-Binance-style funding per 8-hour period is
-
-> funding = premium + clamp(interest − premium, −0.05%, +0.05%), with interest = 0.01%,
-
-where *premium* is the perp's average premium to the spot index over the period. For any premium
-between about −0.04% and +0.06%, the clamp returns funding to exactly **0.01% per 8 hours (10.95% a
-year)**. This *floor* behaves like an administered policy rate: funding sits on it in calm markets and
-moves away only when leveraged demand is strong in one direction.
-
-A position of *q* coins long spot and *q* coins short the perp earns, each period:
-
-> P&L = q × perp price × funding − q × Δ(perp price − spot price) − trading costs,
-
-and ties up capital equal to the spot notional plus margin for the short. Against the alternative of
-holding T-bills, the trade's excess return is approximately
-
-> excess ≈ funding ÷ m − T-bill − costs,
-
-where *m* is the **margin factor**: capital tied up per $1 of notional. With spot held in a separate
-account and a prudent buffer on the short, *m* ≈ 1.5; under portfolio margin, where spot counts as
-collateral at a 95% ratio, *m* ≈ 1.0–1.05.
-
-## 3. Data
-
-| Source | Use |
-|---|---|
-| Binance USD-M API and archive (data.binance.vision) | Funding since 2019-09, daily volume, 8-hour spot and perp bars; archive for delisted symbols the API no longer serves |
-| Bybit v5 API and public archive | Funding since 2021, daily volume, 8-hour bars (built from 4-hour bars); spot only from July 2021 |
-| FRED `DGS3MO` | 3-month T-bill, lagged one day |
-
-**Universe.** Each month, the top 30 coins by trailing 30-day Binance perp volume among coins traded on
-both venues, using only data before the month: **274 distinct coins**, including coins later delisted
-(both venues still serve their history). Stock, ETF and commodity perps, launched in 2025 and by 2026
-holding about a third of the top-30 volume slots, are excluded by Binance's own `TRADIFI_PERPETUAL`
-tag (one ticker clash, CAT, resolved in favour of the crypto token).
-
-**Common grid.** Venues settle some coins every 1 or 4 hours, so all payments are summed into 8-hour
-windows ending 00:00, 08:00 and 16:00 UTC. Prices are 8-hour closes stamped at the bar's close; bars
-still forming are dropped. Perp prices are divided by contract multipliers (1000PEPE, 1MBABYDOGE).
-
-**Investable set.** A coin is investable on a venue when it is in that month's universe, has a spot
-market there, and its basis is within ±20% (larger prints are collapses or broken spot/perp pairs,
-e.g. LUNA in May 2022). Coverage under 0.5% missing; about 25 investable coins per venue.
-
-## 4. Research protocol
-
-Every test followed the same protocol, recorded in a dated decisions log:
-
-1. **Pre-registration.** Each phase's test, models and decision rule were written down before any
-   result was seen. Rule clarifications were made only before running.
-2. **No look-ahead.** Forecasts are walk-forward with monthly refits; a training row is used only if its
-   target window ends before the refit date. A test scrambles all data after a cut-off and checks that
-   no earlier forecast changes; it was confirmed to catch a leaky version.
-3. **Multiple testing.** Every strategy variant is a trial, and results are reported with the deflated
-   Sharpe ratio (Bailey and López de Prado, 2014) across all of them: 16 by the end.
-4. **Conservative assumptions.** Taker fees on every trade (0.10% spot, 0.05–0.055% perp) plus 2 bp
-   slippage per leg (about 0.38% per round trip); liquidation of the short when its price rises 40%
-   since the daily margin top-up (2% penalty); one-window execution lag; forced exits at full cost.
-5. **Corrections published.** Three engine bugs were found after first results (Section 8); each was
-   fixed with a regression test, every affected phase was rerun, and the original numbers are kept in
-   the log. No decision changed.
-
-The backtest engine runs both venues on the 8-hour grid and splits P&L into funding, basis change,
-trading costs, liquidation penalties and cash interest; the components sum to the equity change exactly.
-
-## 5. Results
-
-### 5.1 The venues are integrated: cross-venue gaps sit inside the cost band
-
-The first hypothesis was that an optimiser could move capital between venues to harvest funding
-differences. The pre-registered test: enter a long/short perp pair on the trailing 3-day Binance–Bybit
-gap, collect the gap over 7 days, and require the top quintile to beat the 21 bp taker round trip on
-average **and** in at least 4 of 6 years.
-
-| | 2021 | 2022 | 2023 | 2024 | 2025 | 2026 |
-|---|---|---|---|---|---|---|
-| Venue funding correlation | 0.71 | 0.82 | 0.95 | 0.95 | 0.94 | 0.95 |
-| Top-quintile 7-day gap collected (bp) | 55.8 | 17.6 | 21.1 | 21.0 | 20.3 | 9.8 |
-
-The top quintile collected 25.0 bp on average but cleared the cost in only 3 of 6 years: **NO-GO**. The
-median absolute gap is 0.2–0.7 bp per 8 hours, and gaps decay with a half-life of about 4.5 hours.
-Arbitrage capital keeps the two largest venues' funding within the cost of moving between them, the
-pattern predicted by limits to arbitrage. The project pivoted to single-venue carry.
-
-### 5.2 Why carry compressed after 2021
-
-| Year | Context | BTC funding % a year | Median coin funding | T-bill | % prints negative | Median basis (bp) |
-|---|---|---|---|---|---|---|
-| 2021 | Bull market, retail leverage | 30.6 | 10.95 | 0.05 | 8% | +3.3 |
-| 2022 | LUNA, 3AC/Celsius, FTX | 4.2 | 2.9 | 2.1 | 42% | −6.1 |
-| 2023 | Recovery; policy rate ~5% | 7.9 | 10.95 | 5.3 | 19% | −3.7 |
-| 2024 | Spot BTC ETFs, rally | 11.9 | 10.95 | 5.2 | 13% | −1.9 |
-| 2025 | Weaker leverage demand | 5.1 | 6.75 | 4.2 | 29% | −4.9 |
-| 2026 (to Oct) | BTC mostly below the floor | 3.1 | 4.8 | 3.8 | 33% | −5.7 |
-
-Five drivers, four measured here and one a hypothesis:
-1. **The floor is fixed by the exchange, not by rates (measured).** At 10.95% a year it paid about 11%
-   over cash in 2021 and about 6% on notional once T-bills reached 5%; about 2.5% on capital at m = 1.5.
-2. **Leverage demand is cyclical (measured):** 30.6% BTC funding in 2021, negative 42% of the time in 2022.
-3. **More arbitrage capital on the short side (hypothesis, not tested):** spot ETFs and Ethena's USDe
-   (both 2024) industrialised long-spot/short-derivative positions.
-4. **The basis has been negative since 2022 (measured):** short demand outweighs leveraged long demand.
-5. **Venue changes (measured):** new coins increasingly list as perps only (spot coverage of the top 30
-   fell from 100% in 2021–23 to 72–78% in 2026), small-coin funding became squeeze-driven and negative
-   (worst: −13.6% in one 8-hour window), and settlement moved to 4- and 1-hourly.
-
-![Funding vs cost of capital](../reports/figures/3_funding_vs_capital_cost.png)
-
-*Figure 1. BTC funding (30-day average) against the cost of capital with and without cross-margining.
-Carry exists only when funding is above the capital-cost line: continuously in 2021, in bursts after.*
-
-### 5.3 Funding is forecastable, but the edge is about the size of costs
-
-Target: mean funding over the next 7 days, for investable coins. Out of sample from 2022:
-
-| | Mean absolute error | Rank IC across coins | Top fifth minus all (% a year) |
-|---|---|---|---|
-| Floor (always 0.01%) | worst | — | — |
-| Last value | beaten by EWMA every year | 0.37–0.60 | 4.6–10.5 |
-| EWMA (1–3 day half-life) | best simple model | 0.49–0.70 | 6.5–15.2 |
-| Pooled regression | best in 4 of 5 years (selected) | 0.47–0.68 | 6.3–16.8 |
-
-A rank IC around 0.5 is very high by equity-factor standards: funding is persistent across coins even
-though individual prints revert within a day. But the top fifth earned 6–17% a year more than the
-average coin *before costs*, while a full weekly rotation at 0.38% per round trip costs about 15.6% a
-year. The regression's advantage came almost entirely from predicting recovery from negative funding;
-at the floor it was the worst model.
-
-### 5.4 Selection and optimisation did not beat passive carry
-
-All strategies run on $1M across both venues, January 2022 to October 2026, in excess of T-bills.
-
-| Strategy | Margin | Excess % a year | Sharpe | Turnover × NAV | Deflated Sharpe |
-|---|---|---|---|---|---|
-| Passive BTC+ETH | 1.50 | 0.36 | 1.10 | 0.1 | 2% |
-| Naive top-5 by forecast, weekly | 1.50 | −4.31 | −1.68 | 31.3 | 0% |
-| Cost-aware top-5 (pre-registered primary) | 1.50 | 1.46 | 0.83 | 3.0 | 1% |
-| MILP allocator (pre-registered primary) | 1.50 | 0.67 | 0.67 | 5.3 | 0% |
-| MILP with churn controls | 1.05 / 1.30 | 1.53 | 1.32 | 4.1 | 3% |
-| **Passive BTC+ETH, portfolio margin** | **1.05** | **1.94** | **4.18** | 0.2 | **100%** |
-
-Each pre-registered comparison was negative: cost-aware selection vs passive (P(not better) = 0.51),
-the MILP vs passive (0.63), and the churn-controlled MILP vs passive at the same realistic margin (0.99).
+- **Cross-venue arbitrage does not pay.** Binance and Bybit funding is 0.95 correlated; gaps close within
+  hours and rarely exceed trading costs. Gaps to an on-chain venue are about twice as wide.
+- **Carry over cash collapsed after 2021.** The exchange's funding floor (10.95% a year) stayed fixed while
+  T-bills rose from 0% to 5%.
+- **Funding is forecastable, but the edge is about the size of trading costs.**
+- **No active strategy beat holding BTC and ETH passively**, including a daily MILP optimiser.
+- **Capital structure decides the outcome.** The trade breaks even at about 1.4× capital per $1 of notional.
+  Under portfolio margin (about 1.05×), passive BTC+ETH earned **+1.9% a year over T-bills (Sharpe 4.2)**;
+  with spot and margin held separately (1.5×), +0.4%.
 
 ![Cumulative excess return](../reports/figures/1_cumulative_excess_return.png)
 
-*Figure 2. Cumulative excess return. Almost all gains arrive in two 2024 bursts; flat stretches are
-periods fully in T-bills.*
+*Figure 1. Cumulative return over T-bills, $1M across both exchanges, after all costs (2022–2026). Labelled
+dips are short-perp liquidations in price spikes on small coins (Section 3.3).*
 
-The **MILP** (solved daily with HiGHS) maximises 30-day expected funding minus the T-bill on capital
-used, minus one-off trading costs and a risk penalty for small and young coins, subject to capital per
-venue, per-coin and liquidity caps, a $10k minimum position, at most 12 positions, a 60% per-venue
-exposure cap, and minimum-size, one-day-delayed transfers between venues. It behaved as designed:
-fully invested in high-funding bursts, in T-bills otherwise, with liquidations and venue exposure
-controlled. But it collected 2.4% of NAV in funding and paid 1.1% in costs, mostly through about 100
-opens and closes a year. Adding an exit-side turnover penalty and a no-trade band cut that by a third
-and doubled its return, still well short of the passive benchmark under the same margin.
+---
 
-![P&L attribution](../reports/figures/2_pnl_attribution.png)
+## 1. How the trade works
 
-*Figure 3. Where the excess return comes from. The largest drag in every strategy is "cash minus
-T-bill": capital tied up in positions that earns nothing.*
+**Perpetual futures** never expire. Instead, longs and shorts exchange a **funding payment** every 1–8 hours
+that pushes the perp back towards the spot price:
 
-### 5.5 Capital structure decides the outcome
+- Perp above spot → longs pay shorts. Perp below spot → shorts pay longs.
+- Binance's formula per 8 hours: **funding = premium + clamp(0.01% − premium, ±0.05%)**.
+- For any small premium, the clamp returns exactly **0.01% per 8 hours = 10.95% a year**: an
+  administered **floor**, much like an interest rate set by the exchange.
 
-Passive BTC+ETH, held at constant exposure (weekly rebalance with a 5% band):
+**The basis (cash-and-carry) trade:** buy *q* coins of spot, short *q* coins of the perp.
 
-| Margin factor | 1.00 | 1.05 | 1.10 | 1.20 | 1.30 | 1.50 | 2.00 |
-|---|---|---|---|---|---|---|---|
-| Excess % a year | +1.71 | +1.43 | +1.18 | +0.74 | +0.36 | −0.24 | −1.21 |
-| Sharpe | 2.83 | 2.49 | 2.15 | 1.47 | 0.78 | −0.59 | −4.04 |
+| P&L component | Source |
+|---|---|
+| Funding | received on the short perp each period (paid when funding is negative) |
+| Basis change | gain or loss as the perp–spot gap moves |
+| Trading costs | fees and slippage when opening, closing or resizing |
+| Cost of capital | the T-bill interest given up on cash tied up in the position |
 
-The formula excess ≈ funding ÷ m − T-bill − costs reproduces these numbers to within a few basis
-points. With 6.4% funding on notional and 4.1% T-bills, **the trade breaks even at about m = 1.4**, and
-each +0.1 of margin factor costs about 0.4–0.5% a year. Venue documentation puts realistic BTC/ETH
-portfolio margin at 1.0–1.05 (95% collateral ratio, 0.40% maintenance margin).
+**Margin factor** = capital tied up per $1 of notional (spot plus margin for the short):
 
-**Leverage helps little.** At m = 1.05 with the extra notional borrowed at T-bill + 1%, going from 1× to
-3× raises the excess from +1.41% to +2.28% but quadruples the drawdown (−2.1% to −8.5%); at an 11%
-exchange loan rate, 3× loses 9.6% a year. Funding must beat the borrow rate plus costs, and exchange
-borrow rates tend to rise with funding.
+- **1.5** if spot and the short perp sit in separate accounts with a 50% buffer (the conservative case).
+- **About 1.05** under portfolio margin, where spot counts as collateral at a 95% ratio.
 
-**Costs matter most for active strategies.** Halving fees adds about 0.3% a year to passive carry and
-doubling them costs about 0.5%; for the MILP the same changes move the return from +0.67% to +0.82%
-and +0.31% (and to +1.06% at a quarter of base costs). Cheaper costs made cost-aware selection
-*worse*, because its cost-scaled entry hurdle had been acting as a quality filter against small coins.
+> **Excess return over T-bills ≈ funding ÷ margin factor − T-bill rate − trading costs.**
 
-### 5.6 Larger frictions widen the band (on-chain venues)
+All results below are in excess of the 3-month T-bill, net of all costs.
 
-If limits to arbitrage set the band, it should be wider where moving capital is harder. Hyperliquid, an
-on-chain venue with the same funding design as Binance (a 0.01% floor), provides that test from late 2023:
-capital moves there by bridging stablecoins rather than an exchange withdrawal. On matched coin-windows:
+## 2. Data
 
-| | Binance–Hyperliquid | Binance–Bybit (matched) |
+- **Exchanges:** Binance and Bybit (funding, daily volume, 8-hour spot and perp prices, 2021–2026);
+  Hyperliquid and dYdX funding from 2023; 3-month T-bill from FRED.
+- **Universe:** each month, the top 30 coins by trailing Binance volume among coins on both exchanges,
+  using only data available at the time: **274 coins**, including coins later delisted.
+- **Investable:** in that month's universe, with a spot market on the same exchange and a perp–spot gap
+  within ±20%. About **25 coins per exchange** from 2022.
+- Stock, ETF and commodity perps are excluded. Full construction rules: Appendix A.
+
+## 3. What was tried
+
+### 3.1 Cross-exchange arbitrage
+
+**Idea.** If funding differs between exchanges, short the perp where funding is high and buy it where it is
+low. The position is price-neutral and collects the gap.
+
+**Test** (decision rule fixed in advance):
+
+- Signal: the average Binance–Bybit funding gap over the previous 3 days.
+- Outcome: the gap collected over the next 7 days, in the signal's direction.
+- Pass: the top 20% of signals must beat the 21 bp round-trip cost on average **and** in at least 4 of 6 years.
+
+**Result: fails.** The top 20% collected 25 bp on average but beat costs in only 3 of 6 years.
+
+| | 2021 | 2022 | 2023 | 2024 | 2025 | 2026 |
+|---|---|---|---|---|---|---|
+| Funding correlation, Binance vs Bybit | 0.71 | 0.82 | 0.95 | 0.95 | 0.94 | 0.95 |
+| Top-20% gap collected over 7 days (bp) | 55.8 | 17.6 | 21.1 | 21.0 | 20.3 | 9.8 |
+
+**Why.** Arbitrageurs already keep the two largest exchanges in line: the typical gap is 0.2–0.7 bp per
+8 hours and halves in about 4.5 hours. What is left sits inside the cost of trading it.
+
+**Where moving money is harder, gaps are wider.** On Hyperliquid, an on-chain exchange where capital moves
+by bridging stablecoins rather than an exchange withdrawal, gaps against Binance on the same coins are:
+
+| | Binance–Hyperliquid | Binance–Bybit (same coins) |
 |---|---|---|
-| Median \|gap\| (bp per 8h) | 0.62 | 0.32 |
-| 90th percentile \|gap\| | 3.40 | 1.63 |
-| Top-quintile gap collected over 7 days | 46 bp | 13 bp |
-| Top-quintile trades beating the taker round trip | 69% | 24% |
+| Median gap (bp per 8 hours) | 0.62 | 0.32 |
+| 90th-percentile gap | 3.40 | 1.63 |
+| Top-20% gap collected over 7 days | 46 bp | 13 bp |
+| Share of those trades beating the round-trip fee | 69% | 24% |
 
-Gaps are about twice as wide, close more slowly in 2025–26, and, unlike the centralised pair, the largest
-of them cleared trading fees most of the time, before the bridging costs and on-chain risks that keep
-them open. The pre-registered prediction (wider *and* slower-closing gaps than Binance–Bybit in at least
-2 of 3 years, for both on-chain pairs) holds. The band is narrowing, though: the top-quintile gap fell from
-54 bp (2024) to 14 bp (2026). A second on-chain venue, dYdX, also passes the test, but its funding has no
-floor or dead zone, so its gaps are largely mechanical and are not counted as evidence about frictions.
+- The largest Hyperliquid gaps beat trading fees most of the time, but only before bridging costs,
+  transfer delays and on-chain risk, which is exactly what keeps them open.
+- The gap is shrinking: the top-20% 7-day gap fell from 54 bp (2024) to 14 bp (2026).
+- dYdX shows wider gaps too, but its funding formula has no floor, so its gaps are largely mechanical and
+  are not counted (Appendix A).
 
-## 6. Discussion
+### 3.2 Forecasting funding
 
-The carry that survived 2021 is a **financing spread**: funding at or near an administered floor,
-earned against the cost of cash. Three features make it hard to improve on by selection:
+**Setup** (details in Appendix B):
 
-- **It is earned in bursts.** Most of 2022–2026's carry arrived in two 2024 rallies; in between,
-  funding sat at or below the capital cost and the right position was T-bills.
-- **The extra carry in small coins is expensive to reach.** Higher funding there comes with higher
-  margin factors, basis losses, liquidations, delistings and no spot market at all for a growing share
-  of new listings.
-- **The asymmetry protects the passive side.** Collecting positive funding needs only cash, which is
-  plentiful, so it is competed down to roughly the cost of capital. Collecting negative funding needs
-  borrowed coins, which are scarce, so negative funding persists in exactly the coins hardest to borrow.
+- Target: each coin's average funding over the **next 7 days**.
+- Four models: a constant (the 0.01% floor), last value, an exponentially weighted average (EWMA) and a
+  pooled linear regression on recent funding averages, the perp–spot gap and time spent at the floor.
+- Walk-forward: trained on 2021, tested out of sample from 2022, refitted monthly using only past data.
 
-What does move returns is the balance sheet: the margin factor, whether collateral earns interest,
-and execution cost. That is the same set of levers a prime-brokerage or treasury desk manages, and it
-fits the limits-to-arbitrage view: the binding constraint on arbitrage is the cost of capital.
+**Results** (out of sample):
 
-## 7. Limitations
+| | Floor | Last value | EWMA | Regression |
+|---|---|---|---|---|
+| Forecast error, mean absolute (bp per 8h), range over 2022–26 | 1.06–2.17 | 0.96–2.00 | 0.82–1.68 | **0.72–1.39** |
+| Ranking of coins: rank IC, range over years | — | 0.37–0.60 | **0.49–0.70** | 0.47–0.68 |
+| Top 20% by forecast vs average coin (% a year, before costs) | — | 4.6–10.5 | 6.5–15.2 | 6.3–16.8 |
 
-- **Short sample, few regimes.** Five out-of-sample years, with most P&L in 2024; the Sharpe ratios of
-  low-volatility carry overstate its quality because tail events (exchange failure, stablecoin de-pegs,
-  liquidation cascades) barely appear in daily volatility.
-- **Simplified execution.** 8-hour closes only (no intra-bar moves), flat base-tier fees across time,
-  constant slippage, an approximate liquidation rule, and margin modelled as a factor rather than each
-  venue's full margin engine.
-- **No borrow data.** Historical coin borrow rates are not public, so the reverse trade (long perp,
-  short spot) could not be tested.
-- **Opportunity cost.** T-bills are used as the cost of cash; crypto-native alternatives (stablecoin
-  lending) may differ.
-- **Access.** Neither venue serves Canadian (Ontario) residents; the results describe the market, not
-  a strategy available to the author.
+- Funding is clearly forecastable: a rank IC around 0.5 is very high (Appendix B explains the measure).
+- The regression wins on error in 4 of 5 years and is used downstream; the EWMA ranks coins slightly better.
+- **The catch:** rotating weekly into the top 20% costs about 15.6% a year (0.38% round trip × 52), about
+  the same as the extra funding it identifies.
 
-## 8. Robustness and corrections
+### 3.3 Rules for choosing coins
 
-Four errors were found after first results and corrected; the log keeps the original numbers.
+**Strategies** ($1M split across both exchanges, margin factor 1.5, 2022–2026):
 
-| Found by | Problem | Fix | Effect |
-|---|---|---|---|
-| Engine refactor | Entering a coin with spot but no perp price produced NaN equity, silently dropping 20 months of one variant | Require both prices; engine fails loudly on non-finite equity | One robustness variant: Sharpe 2.34 → 1.20 |
-| Extending to 30-day forecasts | Walk-forward leakage gap hard-coded to 7 days | Gap equals the target length; leak test extended | Prevented a leak before any 30-day result |
-| Charts of positions | Delisted coins (MATIC after its POL migration) held forever with no price | Close after 3 days without a price, at last prices | All active strategies improved; no decision changed |
-| Trading counts | Engine re-traded positions the MILP had left unchanged, chasing stale dollar targets | Pass "hold" instead of a dollar amount | MILP resizes fell from ~615 to ~105 a year |
+| | Rule |
+|---|---|
+| **Passive** | hold BTC and ETH on both exchanges, always |
+| **Naive top 5** | each week, rotate into the 5 coins with the highest forecast |
+| **Cost-aware top 5** | enter a coin only if its forecast beats T-bills plus the round-trip cost spread over 7 days; exit only when the forecast falls below T-bills |
 
-## 9. Conclusion
+**Results:**
 
-From 2021 to 2026, crypto basis carry moved from a high-return trade to a financing spread. The two
-largest venues are integrated within their cost band; carry over cash compressed because the funding
-floor is fixed while rates rose; funding is forecastable but the forecastable part is about the size
-of the cost of acting on it; and neither selection nor a constrained optimiser beat holding BTC and
-ETH carry passively. Under realistic portfolio margin that passive position earned +1.9% a year over
-T-bills. The returns were decided by capital structure and costs rather than by signals.
+| | Excess return a year | Sharpe | Max drawdown | Turnover (× capital a year) |
+|---|---|---|---|---|
+| **Passive BTC+ETH** | **+0.36%** | **1.10** | −2.5% | 0.1 |
+| Naive top 5 | −4.31% | −1.68 | −19.0% | 31.3 |
+| Cost-aware top 5 | +1.46% | 0.83 | −3.5% | 3.0 |
+| Cost-aware top 5, EWMA forecast | +2.56% | 1.35 | −2.3% | 2.4 |
 
-Where moving capital is harder, the band is wider: Binance–Hyperliquid gaps are about twice the
-Binance–Bybit gaps on the same coins, and their largest gaps cleared trading fees, consistent with the
-frictions fees do not capture. That band has been narrowing as arbitrage capital moves on-chain.
+None of the active rules beats passive on a risk-adjusted basis (the cost-aware rule's Sharpe is lower,
+P(not better) = 0.51), and none survives the correction for the number of variants tried (Appendix B).
 
-## References
+**Why:**
 
-- Bailey, D. H. and López de Prado, M. (2012). The Sharpe ratio efficient frontier. *Journal of Risk*.
-- Bailey, D. H. and López de Prado, M. (2014). The deflated Sharpe ratio. *Journal of Portfolio Management*.
-- Christin, N., Routledge, B., Soska, K. and Zetlin-Jones, A. (2022). The crypto carry trade. Working paper.
-- Du, W., Tepper, A. and Verdelhan, A. (2018). Deviations from covered interest rate parity. *Journal of Finance*.
-- He, S., Manela, A., Ross, O. and von Wachter, V. (2022). Fundamentals of perpetual futures. Working paper.
-- Koijen, R., Moskowitz, T., Pedersen, L. and Vrugt, E. (2018). Carry. *Journal of Financial Economics*.
-- Schmeling, M., Schrimpf, A. and Todorov, K. (2023). Crypto carry. BIS working paper.
-- Shleifer, A. and Vishny, R. (1997). The limits of arbitrage. *Journal of Finance*.
+- **Naive rotation is eaten by costs:** the most funding collected (5.8% of capital a year) but 6.0% paid in
+  costs and 0.6% in liquidation penalties.
+- **The cost-aware rule mostly sits in cash:** spreading a 0.38% round trip over only 7 days requires
+  forecast funding of about 24% a year to enter, so it held 1.7 coins on average out of 10 slots.
+- **Small coins bring liquidations.** Every numbered dip in Figure 1 is a short perp liquidated in a price
+  spike on a small coin: PEOPLE (March 2024), ADA (March 2025, when it jumped on the US "crypto strategic
+  reserve" announcement), BNX (March 2025, −2.1% in a day, mostly reversed the next day) and BSB (June 2026).
+  Each costs a 2% penalty plus a loss on the leftover spot, which is sold at the next 8-hour close after
+  the spike has partly reversed. BTC and ETH were never liquidated.
 
-## Appendix: reproducing the results
+### 3.4 A daily optimiser (MILP)
+
+**How it is used.** Once a day, a mixed-integer program (solved with HiGHS) decides how much of each coin to
+hold on each exchange, and whether to move capital between exchanges. Trades execute at the next 8-hour
+close.
+
+- **Maximises:** expected funding over 30 days, minus the T-bill on capital used, minus trading costs
+  (charged in full when a position opens), minus a risk penalty for small and newly listed coins.
+- **Constraints:** capital per exchange; per-coin caps (25% of an exchange's capital for BTC/ETH, 10% other
+  coins, 5% coins listed under 90 days); at most 1% of a coin's daily volume; $10k minimum position;
+  at most 12 positions; at most 60% of capital on one exchange; transfers of at least $50k that arrive a
+  day later.
+- **Forecast:** the regression, refitted for a 30-day target.
+- Full formulation: Appendix D.
+
+**Results:**
+
+| | Margin | Excess return a year | Sharpe | Turnover | Costs a year |
+|---|---|---|---|---|---|
+| Passive BTC+ETH | 1.50 | +0.36% | 1.10 | 0.1 | 0.03% |
+| **MILP** | 1.50 | +0.67% | 0.67 | 5.3 | 1.07% |
+| MILP with turnover controls* | 1.05 / 1.30 | +1.53% | 1.32 | 4.1 | 0.82% |
+| **Passive BTC+ETH, portfolio margin** | **1.05** | **+1.94%** | **4.18** | 0.2 | 0.04% |
+
+\* *Exit costs charged in the objective, a no-trade band (trades smaller than $5k or 10% skipped), and
+realistic portfolio margin (1.05 for BTC/ETH, 1.30 for other coins).*
+
+**Why it does not beat passive:**
+
+- It does what it was designed to: fully invested during the high-funding periods of 2024, in T-bills
+  otherwise, with fewer liquidations than the coin-picking rules (Figure 2).
+- But it **gives much of the carry back in trading:** about 100 opens and closes a year as forecasts
+  change (Figure 3). Turnover controls cut that by a third and doubled the return, still well short of
+  passive under the same margin.
+- The extra funding in small coins comes with **higher margin factors, liquidations and basis losses**.
+  Passive BTC+ETH trades almost never and ties up the least capital (Figure 4).
+
+![MILP positions](../reports/figures/4_milp_positions.png)
+
+*Figure 2. MILP capital deployed and weekly positions by coin. Fully invested in 2022 and the 2024 rallies;
+mostly in T-bills otherwise.*
+
+![MILP trading](../reports/figures/5_milp_trading.png)
+
+*Figure 3. MILP trading by month: opens and closes dominate, concentrated in the high-funding periods.*
+
+![Where the excess return comes from](../reports/figures/2_pnl_attribution.png)
+
+*Figure 4. Annual P&L by source. Funding adds (blue); the largest drag in every strategy is "cash − T-bill",
+the interest given up on capital tied up in positions.*
+
+## 4. What is left: single-exchange basis carry
+
+With selection and arbitrage ruled out, the return is the carry itself, and how much of it survived
+2021 depends on the regime:
+
+| Year | Context | BTC funding (% a year) | Median coin funding | T-bill | Funding prints negative |
+|---|---|---|---|---|---|
+| 2021 | Bull market, retail leverage | 30.6 | 10.95 | 0.05 | 8% |
+| 2022 | LUNA, 3AC/Celsius, FTX collapses | 4.2 | 2.9 | 2.1 | 42% |
+| 2023 | Recovery; policy rate about 5% | 7.9 | 10.95 | 5.3 | 19% |
+| 2024 | Spot BTC ETFs, rally | 11.9 | 10.95 | 5.2 | 13% |
+| 2025 | Weaker leverage demand | 5.1 | 6.75 | 4.2 | 29% |
+| 2026 (to Oct) | BTC mostly below the floor | 3.1 | 4.8 | 3.8 | 33% |
+
+![Funding vs cost of capital](../reports/figures/3_funding_vs_capital_cost.png)
+
+*Figure 5. BTC funding (30-day average) against the cost of capital. The trade earns only when funding is
+above the capital-cost line: continuously in 2021, in bursts since.*
+
+**Why carry compressed:**
+
+- **The floor is set by the exchange, not by interest rates.** 10.95% a year was 11% over cash in 2021 and
+  about 6% over cash once T-bills reached 5%; about 2.5% after the capital cost at margin factor 1.5.
+- **Leverage demand is cyclical:** 30.6% BTC funding in 2021, negative 42% of the time in 2022.
+- **The perp has traded below spot since 2022** (median −2 to −6 bp): more natural short sellers than
+  leveraged buyers.
+- **More arbitrage capital** (spot ETFs and Ethena's USDe stablecoin in 2024) is a likely contributor, not
+  tested here.
+- **Fewer coins can be hedged:** new coins increasingly list as perps only, so spot is available for only
+  72–78% of the top 30 by 2026, down from 100%.
+
+**Passive BTC+ETH carry, 2022–2026:**
+
+| Margin factor | Excess return a year | Sharpe |
+|---|---|---|
+| 1.50 (separate accounts) | +0.36% | 1.10 |
+| 1.10 | +1.71% | 3.85 |
+| 1.05 (portfolio margin) | +1.94% | 4.18 |
+
+In 2021 alone, before any of the tests above, the same position earned +12.6% over T-bills.
+
+## 5. Sensitivity to margin, leverage and costs
+
+![Margin sensitivity](../reports/figures/7_margin_sensitivity.png)
+
+*Figure 6. Passive BTC+ETH excess return against capital tied up per $1 of notional (constant exposure,
+weekly rebalance). Break-even is about 1.4.*
+
+**Margin is the main lever.**
+
+- Each additional 0.1 of margin factor costs about 0.4–0.5% a year.
+- Break-even ≈ funding ÷ (T-bill + costs) ≈ 6.4% ÷ 4.6% ≈ **1.4**.
+- Exchange documentation puts realistic BTC/ETH portfolio margin at 1.0–1.05 (95% collateral ratio, 0.4%
+  maintenance margin).
+
+**Leverage helps little.** Borrowing to hold more notional (margin factor 1.05):
+
+| Leverage | 1× | 1.5× | 2× | 3× |
+|---|---|---|---|---|
+| Borrow at T-bill + 1%: excess / max drawdown | +1.41% / −2.1% | +1.65% / −3.4% | +1.86% / −5.2% | +2.28% / −8.5% |
+| Borrow at 11% (exchange loan): excess / max drawdown | +1.28% / −2.2% | −1.31% / −8.2% | −4.05% / −17.8% | −9.55% / −36.8% |
+
+- Leverage pays only if funding beats the borrowing rate plus costs. At cash-like rates each extra 1× adds
+  about 0.4% a year but roughly doubles the drawdown; at exchange loan rates it is destructive.
+- Better than leverage: **earn interest on the capital already tied up** (yield-bearing collateral), which
+  attacks the largest cost without adding risk.
+
+**Costs matter most for active strategies.** All fees and slippage multiplied by k (k = 1 is the base case,
+about 0.38% per round trip):
+
+| k | 0.25 | 0.5 | 1 | 2 |
+|---|---|---|---|---|
+| Passive BTC+ETH (margin 1.10) | +1.56% | +1.43% | +1.18% | +0.68% |
+| MILP (margin 1.50) | +1.06% | +0.82% | +0.67% | +0.31% |
+
+Even with maker or VIP fees, the MILP stays below passive under the same margin.
+
+## 6. Conclusion
+
+- The carry that survived 2021 is a **financing spread**: funding near an exchange-set floor, earned against
+  the cost of cash.
+- It cannot be improved by arbitrage between the largest exchanges (already integrated), by coin selection
+  (the edge is about the cost of trading it), or by a constrained optimiser (it gives the carry back in
+  turnover).
+- What moves returns is the balance sheet: **the margin factor, whether collateral earns interest, and
+  execution cost**.
+- Where moving capital is harder (on-chain exchanges), wider gaps persist, consistent with the cost of
+  arbitrage capital being the binding constraint.
+
+**Limitations**
+
+- Five out-of-sample years, with most of the P&L in 2024. Low-volatility carry flatters the Sharpe ratio:
+  exchange failure, stablecoin de-pegs and liquidation cascades barely appear in five years of daily data.
+- 8-hour prices only; flat base-tier fees; an approximate liquidation rule; margin modelled as a single factor.
+- No historical coin-borrow data, so the reverse trade (long perp, short spot) is untested.
+- Neither Binance nor Bybit serves Ontario residents: this describes the market, not an accessible strategy.
+
+---
+
+## Appendix A. Data and universe
+
+- **Sources:** Binance USD-M API and bulk archive (data.binance.vision), used for delisted symbols the live
+  API no longer serves; Bybit v5 API (spot only from July 2021); Hyperliquid and dYdX public APIs (hourly
+  funding); FRED for the T-bill, lagged one day.
+- **Universe:** monthly top 30 by trailing 30-day Binance perp volume among coins traded on both exchanges on
+  at least 25 of the previous 30 days. Stablecoins excluded. Stock, ETF and commodity perps (Binance tag
+  `TRADIFI_PERPETUAL`) excluded; by 2026 they held about a third of top-30 volume.
+- **Common grid:** exchanges settle some coins every 1 or 4 hours, so all funding is summed into 8-hour
+  windows ending 00:00, 08:00 and 16:00 UTC. Prices are 8-hour closes; perp prices are divided by contract
+  multipliers (e.g. 1000PEPE).
+- **Investable:** spot market on the same exchange, and a perp–spot gap within ±20% (larger gaps are
+  collapses or broken pairs, e.g. LUNA in May 2022). Under 0.5% of windows are missing.
+- **On-chain comparison:** Hyperliquid has the same 0.01% floor as Binance (median coin exactly on it), so its
+  gaps are comparable. dYdX's funding has no floor and no dead zone (median 0.00% a year), so small price
+  moves pass straight into it while Binance's stays flat: correlation 0.09 and largely mechanical gaps.
+  Each on-chain pair is compared with Binance–Bybit on the same coins and windows.
+
+## Appendix B. Research protocol
+
+**Pre-registration.** Each test's design and pass/fail rule was written down before it ran:
+
+| Test | Rule | Outcome |
+|---|---|---|
+| Cross-exchange arbitrage | Top-20% gap beats 21 bp on average and in ≥ 4 of 6 years | Fail (3 of 6) |
+| Forecast model choice | Regression used only if it beats last value and EWMA on error in ≥ 4 of 5 years | Pass (4 of 5) |
+| Forecast-driven selection | Cost-aware top 5 beats passive Sharpe (P < 0.10) and is positive in ≥ 3 of 5 years | Fail (P = 0.51) |
+| MILP | Beats passive Sharpe (P < 0.10) and positive in ≥ 3 of 5 years | Fail (P = 0.63) |
+| MILP with turnover controls | Beats passive at the same margin (P < 0.10), positive in ≥ 3 of 5 years | Fail (P = 0.99) |
+| On-chain gaps | Both on-chain pairs show wider and slower-closing gaps in ≥ 2 of 3 years | Pass |
+
+**Statistics used:**
+
+- **Paired block bootstrap:** resamples blocks of days from two strategies together, to test whether one
+  Sharpe ratio is really higher than another.
+- **Deflated Sharpe ratio:** the probability that a strategy's Sharpe is real after accounting for how many
+  variants were tried (16 here). The best of many skill-free strategies looks good by luck; this measure
+  asks whether a result beats that luck benchmark. Only passive BTC+ETH under portfolio margin survives.
+- **Rank IC:** at each point in time, the correlation between how coins are ranked by forecast and how they
+  rank by actual funding afterwards, averaged over time. Zero is no information; above 0.05 is useful in
+  equity research; the forecasts here reach about 0.5 because funding is persistent.
+
+**Forecast details:**
+
+- Features: last funding; EWMAs with 1, 7 and 30-day half-lives; perp–spot gap; share of the last 3 days at
+  the floor.
+- The EWMA model's half-life is chosen from {1, 3, 7, 30} days at each monthly refit, using training data only.
+- No look-ahead: a training row is used only if its whole target window ends before the refit date. A test
+  scrambles all data after a cut-off and checks that no earlier forecast changes.
+
+## Appendix C. Backtest engine and assumptions
+
+- **Timing:** decide at an 8-hour close using data up to then; trade at the next close.
+- **P&L per window:** funding + basis change + cash interest − costs − liquidation penalties. The components
+  add up to the equity change exactly (tested).
+- **Costs (base tier, taker):** spot 0.10%; perp 0.05% (Binance), 0.055% (Bybit); plus 2 bp slippage per
+  leg: about 0.38% per round trip.
+- **Margin:** 50% buffer on the short, no cross-margining (margin factor 1.5) unless stated; margin topped up
+  once a day.
+- **Liquidation:** if the perp rises more than 40% since the last daily top-up, the short is closed with a 2%
+  penalty and the spot is sold at the next close.
+- **Exits:** coins that stop being investable are closed with full costs; coins with no price for 3 days
+  (delisted) are closed at their last prices.
+- **Liquidity:** positions capped at 1% of 7-day average daily volume.
+
+## Appendix D. MILP formulation
+
+For each candidate coin *i* on exchange *v*, with current notional x⁰ and forecast annual funding f:
+
+- **Variables:** target notional x ≥ 0; buys b ≥ 0; sells s ≥ 0 (s ≤ x⁰); open position y ∈ {0, 1}; for
+  each direction between the two exchanges, transfer amount g ≥ 0 and transfer flag z ∈ {0, 1}.
+- **Objective (maximise, over a horizon H of 30 days):**
+  Σ x · (f − m·r − penalty) · H − Σ b · round-trip cost − Σ g · r / 365 − $10 × Σ z,
+  where m is the margin factor, r the T-bill rate, and the penalty is 0% (BTC/ETH), 3% (other coins) or 10%
+  (coins listed under 90 days) a year.
+- **Constraints:**
+  - x = x⁰ + b − s;
+  - x ≤ cap · y and x ≥ $10k · y, where cap = min(per-coin share of exchange capital, 1% of daily volume);
+  - Σ y ≤ 12;
+  - Σ m · x on each exchange ≤ its capital − transfers out + transfers arriving;
+  - each exchange ≤ 60% of total capital after transfers;
+  - $50k · z ≤ g ≤ total capital · z.
+- **Turnover-controlled version:** sells also pay the exit half of the round trip, and each held position either
+  stays unchanged or trades by at least max($5k, 10% of the position).
+- Solved daily with HiGHS (via `scipy.optimize.milp`); positions left unchanged are held as is rather than
+  re-traded as prices drift.
+
+## Appendix E. Corrections
+
+Errors found after first results were fixed, tested and rerun; no decision changed.
+
+| Found by | Problem | Effect of the fix |
+|---|---|---|
+| Engine refactor | A coin with spot but no perp price produced undefined equity, silently dropping months of one variant | EWMA variant Sharpe 2.34 → 1.35 |
+| 30-day forecasts | Look-ahead gap hard-coded to 7 days | Prevented a leak before any 30-day result |
+| Position charts | Delisted coins (e.g. MATIC after its rename) held forever with no price | Active strategies improved |
+| Trade counts | Optimiser positions re-traded as prices drifted | MILP resizes fell from ~615 to ~105 a year |
+| Data end date | Final window lacked a funding print, forcing an artificial exit | Passive Sharpe 1.01 → 1.10 |
+
+## Appendix F. Reproducing the results
 
 ```bash
 python -m venv .venv && .venv/bin/pip install -e ".[dev]"
-.venv/bin/python research/build_data.py           # data (~1.5 h first time; resumable)
-.venv/bin/python research/phase1_descriptives.py  # cross-venue test and descriptives
-.venv/bin/python research/phase2_forecast.py      # investable set, basis, forecasts
-.venv/bin/python research/phase3_backtest.py      # strategy backtests
-.venv/bin/python research/phase4_allocator.py     # MILP allocator
-.venv/bin/python research/phase4b_allocator.py    # MILP with churn controls
-.venv/bin/python research/sensitivity.py          # margin, leverage, costs
-.venv/bin/python research/figures.py              # figures
-.venv/bin/pytest                                  # 19 tests
+.venv/bin/python research/build_data.py              # data (~1.5 h the first time; resumable)
+.venv/bin/python research/phase1_descriptives.py     # cross-exchange test and descriptives
+.venv/bin/python research/phase2_forecast.py         # investable set, forecasts
+.venv/bin/python research/phase3_backtest.py         # coin-selection rules
+.venv/bin/python research/phase4_allocator.py        # MILP
+.venv/bin/python research/phase4b_allocator.py       # MILP with turnover controls
+.venv/bin/python research/sensitivity.py             # margin, leverage, costs
+.venv/bin/python research/build_extensions.py hyperliquid && .venv/bin/python research/extension_a_onchain.py
+.venv/bin/python research/figures.py                 # figures
+.venv/bin/pytest                                     # tests
 ```
 
-Phase write-ups: `docs/phase1.md` to `docs/phase4b.md`, `docs/sensitivity.md`. Pre-registered specs:
-`docs/plan.md`. Every decision and correction: `docs/decisions.md`.
+Detailed write-ups per stage: `docs/phase1.md` to `docs/phase4b.md`, `docs/sensitivity.md`,
+`docs/extension_a.md`. Decision rules: `docs/plan.md`. Every decision and correction: `docs/decisions.md`.
