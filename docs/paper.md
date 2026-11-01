@@ -103,8 +103,13 @@ for the same trades (2021–2026, after the 21 bp round trip):
 - At 8-hour closes the two perps are already priced the same (median gap at entry 0 bp; the high-funding
   perp was the dearer one only 48% of the time), so there is no price convergence left to collect. Price
   gaps between major exchanges close within seconds.
-- Funding gaps close quickly but tend to reopen in the same direction, so exiting early pays a full round
-  trip for one or two days of carry. A gap of about 3 bp per 8 hours needs about a week to cover 21 bp.
+- Funding gaps are noisy: a single window near zero does not mean the gap is over, so exiting on it pays a
+  full round trip for one or two days of carry. A gap of about 3 bp per 8 hours needs about a week to cover
+  21 bp, yet a week later its sign is a coin flip (the same 51% of the time).
+- Why funding can differ while prices match: each venue's funding measures its perp against *its own*
+  spot index, using order-book impact prices, its own averaging and settlement interval, and a clamp that
+  hides small differences. Both venues sit exactly on the floor in 31% of windows; the large gaps come
+  when at least one leaves it (88% of top-20% windows), mostly in small coins (BTC and ETH are 3% of them).
 
 **Where moving money is harder, gaps are wider.** On Hyperliquid, an on-chain exchange where capital moves
 by bridging stablecoins rather than an exchange withdrawal, gaps against Binance on the same coins are:

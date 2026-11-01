@@ -2,6 +2,10 @@
 
 Newest first. Every analysis choice that could change a result is recorded here with its date.
 
+- **2026-10-31 (correction)** Wording fix in paper 3.1: funding gaps do not "reopen in the same direction";
+  a top-20% gap has the same sign 7 days later only 51% of the time. Added a decomposition of where the
+  large gaps come from (off-floor premiums, settlement-interval mismatches, small coins).
+
 - **2026-10-31** Cross-exchange sensitivity (not a decision; exits fixed before running): Phase 1 trades
   re-evaluated including the price leg and two alternative exits (funding gap closes; prices converge),
   capped at 30 days. Price leg ≈ 0 (perps already converged at 8-hour closes); alternative exits worse
