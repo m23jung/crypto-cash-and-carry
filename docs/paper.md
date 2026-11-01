@@ -153,11 +153,21 @@ by bridging stablecoins rather than an exchange withdrawal, gaps against Binance
 
 **Strategies** ($1M split across both exchanges, margin factor 1.5, 2022–2026):
 
-| | Rule |
-|---|---|
-| **Passive** | hold BTC and ETH on both exchanges, always |
-| **Naive top 5** | each week, rotate into the 5 coins with the highest forecast |
-| **Cost-aware top 5** | enter a coin only if its forecast beats T-bills plus the round-trip cost spread over 7 days; exit only when the forecast falls below T-bills |
+| | Signal | Enter | Exit | Decides |
+|---|---|---|---|---|
+| **Passive** | none | hold BTC and ETH on both exchanges, always | only if the coin stops being investable | n/a |
+| **Naive top 5** | 7-day forecast | the 5 coins with the highest forecast | drops out of the top 5 | every 7 days |
+| **Cost-aware top 5** | 7-day forecast | forecast beats T-bills plus the round-trip cost spread over 7 days | forecast falls below T-bills | every 8 hours |
+| **MILP** (Section 3.4) | 30-day forecast | chosen by the optimiser, net of trading costs | chosen by the optimiser | daily |
+
+- **Forecasts:** the regression is refitted monthly, but each coin's forecast is recomputed every 8 hours
+  from the latest funding.
+- **Execution:** a decision made at one close is executed at the next 8-hour close, so no trade uses
+  information it could not have had.
+- **Forced exits:** every strategy closes a position on liquidation or when the coin leaves the universe.
+- **Sizing:** the three rules give each position a fixed slot (equity ÷ 1.5 ÷ number of slots) and do not
+  resize while held. The cost-aware rule's lower exit bar (T-bills, not T-bills plus cost) keeps it from
+  trading in and out.
 
 **Results:**
 
