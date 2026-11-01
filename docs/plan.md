@@ -288,6 +288,12 @@ every Phase 3 and Phase 4 variant.
 
 ## Phase 4 spec: MILP allocator (fixed 2026-10-29, before any Phase 4 run)
 
+> **Revised 2026-10-31 (after results): single-venue books.** The joint two-venue allocation below, with
+> capital transfers, added nothing (ablation A1, fixed 50/50 split: 0.60% vs 0.67% a year), so each venue
+> now runs its own MILP on $500k, like the Phase 3 rules. The 12-position cap becomes 6 per venue; the
+> transfer variables, transfer constraints and the 60% venue cap are dropped; A1 is dropped (it is now the
+> primary design). All earlier runs still count as trials. Multi-venue code and reports: git history (d47bd09).
+
 **Cadence.** One optimisation per day at the 00:00 UTC close, executed at the next close (08:00),
 for both venues jointly. Solver: HiGHS, through `scipy.optimize.milp`.
 

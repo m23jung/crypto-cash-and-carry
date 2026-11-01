@@ -11,12 +11,13 @@ from pathlib import Path
 
 import pandas as pd
 from phase3_backtest import COSTS, NAV, START, STRATEGIES
+from phase4_allocator import milp_backtest
 
 from funding import metrics
-from funding.backtest import Book, Costs, run, run_joint
+from funding.backtest import Book, Costs, run
 from funding.dataset import VENUES, investable_rows, load, tbill_8h
 from funding.forecast import walk_forward
-from funding.milp import Params, make_allocator
+from funding.milp import Params
 
 OUT = Path("reports/sensitivity/report.md")
 COINS = ("BTC", "ETH")
@@ -107,8 +108,7 @@ def main():
         if k in (0.25, 0.5, 1.0, 2.0):
             print(f"MILP k={k}", flush=True)
             costs = {v: scaled(COSTS[v], k) for v in VENUES}
-            led = run_joint(panels, make_allocator(fc30["M3_regression"], panels, tbill, Params()), NAV, tbill, costs,
-                            None, START)
+            led = milp_backtest(panels, fc30["M3_regression"], tbill, Params(), costs=costs)
             c_rows[(f"{k:.2f}", "MILP primary (margin 1.50)")] = stats(led)
     section("C. Transaction costs (fees + slippage × k)",
             pd.DataFrame(c_rows).T.rename_axis(["cost multiplier", "strategy"]).sort_index(level=[1, 0]),

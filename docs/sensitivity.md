@@ -61,12 +61,12 @@ and neither venue serves Canadian (Ontario) residents.
 | k | 0 | 0.25 | 0.5 | 1.0 | 1.5 | 2.0 |
 |---|---|---|---|---|---|---|
 | Passive BTC+ETH (margin 1.10) | +1.68 | +1.56 | +1.43 | +1.18 | +0.93 | +0.68 |
-| MILP primary (margin 1.50) | | +1.06 (Sharpe 0.96) | +0.82 | +0.67 | | +0.31 |
+| MILP primary (margin 1.50) | | +1.12 (Sharpe 0.87) | +0.82 | +0.63 | | +0.28 |
 | S3 cost-aware top-5 (margin 1.50) | +2.05 | +0.88 | +1.05 | +1.46 | +0.86 | +0.77 |
 
 - **Passive is robust:** about −0.27% a year per +0.5 in k, still positive at double costs.
-- **The MILP is the most cost-sensitive** (its churn): +1.06% a year at k = 0.25 vs +0.31% at k = 2.
-  Even with maker or VIP fees its Sharpe (0.96) stays below the same-margin benchmark (S1, 1.10).
+- **The MILP is the most cost-sensitive** (its churn): +1.12% a year at k = 0.25 vs +0.28% at k = 2.
+  Even with maker or VIP fees its Sharpe (0.87) stays below the same-margin benchmark (S1, 1.10).
 - **S3 gets worse when costs fall** (k = 0.25: +0.88%, drawdown −6.1%): its entry hurdle scales with
   costs, so cheaper costs admit more marginal small coins, with more liquidations and basis losses.
   The cost hurdle was acting as a hidden quality filter; risk controls belong in the rule explicitly.

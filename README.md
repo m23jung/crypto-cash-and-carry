@@ -4,7 +4,7 @@ Crypto perpetual futures charge a **funding rate** that works like a repo rate f
 leveraged longs pay whoever supplies balance sheet. Buying spot and shorting the perp collects it
 with no price risk. This project measures that carry with free exchange data (Binance, Bybit,
 2021–2026, including later-delisted coins) and tests, under pre-registered rules, whether
-cross-venue arbitrage, funding forecasts or a mixed-integer allocator (HiGHS) beat simply holding
+funding forecasts or a mixed-integer allocator (HiGHS) beat simply holding
 it. **They don't, after costs: the outcome is decided by capital structure, not selection.**
 
 [![CI](https://github.com/m23jung/crypto-cash-and-carry/actions/workflows/ci.yml/badge.svg)](https://github.com/m23jung/crypto-cash-and-carry/actions/workflows/ci.yml)
@@ -15,11 +15,6 @@ it. **They don't, after costs: the outcome is decided by capital structure, not 
 
 ## Key findings
 
-- **Venues are tightly integrated.** Binance–Bybit funding correlation is 0.95 since 2023, and gaps
-  halve in about 4.5 hours. Cross-venue gaps mostly sit inside the round-trip cost band.
-- **The band widens with frictions.** Against Hyperliquid, an on-chain venue where capital moves by
-  bridge, gaps are about twice as wide as Binance–Bybit on the same coins, and their largest gaps
-  cleared trading fees 69% of the time (vs 24%), before bridging costs. That band is narrowing.
 - **The 0.01% floor dominates.** The median coin pays *exactly* 0.01% per 8h (10.95% a year) in most
   years; excess over T-bills ranged from +10.9% (2021) to about +1% (2026).
 - **Small-coin funding has turned negative and fat-tailed** (2025–26): squeezes on new listings
@@ -39,7 +34,7 @@ it. **They don't, after costs: the outcome is decided by capital structure, not 
 
 - **Capital efficiency beats optimisation.** Counting spot as collateral took passive BTC+ETH from
   +0.36% to +1.71–1.94% a year. The MILP collected carry but gave much of it back in rotation costs;
-  churn controls helped (0.67% → 1.53%) but not enough to beat passive (Sharpe 1.3 vs 4.2).
+  churn controls helped (0.63% → 1.45%) but not enough to beat passive (Sharpe 1.2 vs 4.2).
 
 - **The carry is a financing trade.** Break-even capital per $1 of notional is about 1.4×; realistic
   portfolio margin (about 1.05×) gives passive BTC+ETH about +1.4% a year over T-bills (Sharpe 2.4).
@@ -61,7 +56,6 @@ Details: [Phase 1](docs/phase1.md), [Phase 2](docs/phase2.md), [Phase 3](docs/ph
 | [docs/phase4.md](docs/phase4.md) | Phase 4 findings and interpretation |
 | [docs/phase4b.md](docs/phase4b.md) | Phase 4b: churn controls and realistic margin |
 | [docs/sensitivity.md](docs/sensitivity.md) | Margin, leverage and transaction-cost sensitivity |
-| [docs/extension_a.md](docs/extension_a.md) | Extension A: on-chain venues and the width of the no-arbitrage band |
 | [reports/](reports/) | Generated tables (one folder per phase) |
 
 ## Layout
@@ -85,7 +79,7 @@ research/       one runnable script per step
   phase4b_allocator.py
   sensitivity.py
   build_extensions.py   data for the extensions
-  extension_a_onchain.py
+  extension_a_onchain.py   (cross-venue; not in the results)
   extension_b_tradfi.py   (exploratory, not in the results)
   figures.py
 reports/        generated output, by phase

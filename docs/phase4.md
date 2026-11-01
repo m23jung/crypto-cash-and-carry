@@ -1,15 +1,20 @@
 # Phase 4: MILP allocator (completed 2026-10-29)
 
 Generated tables: [`reports/phase4/report.md`](../reports/phase4/report.md).
-Code: [`funding/milp.py`](../funding/milp.py), [`funding/backtest.py`](../funding/backtest.py) (`run_joint`),
+Code: [`funding/milp.py`](../funding/milp.py), [`funding/backtest.py`](../funding/backtest.py) (`run_daily`),
 [`research/phase4_allocator.py`](../research/phase4_allocator.py).
 Spec and decision rule (fixed before any run): [plan](plan.md#phase-4-spec-milp-allocator-fixed-2026-10-29-before-any-phase-4-run).
 Follow-up with churn controls and realistic margin: [Phase 4b](phase4b.md).
 
+**Revised 2026-10-31: one book per venue.** The first version allocated across Binance and Bybit jointly
+and could transfer capital between them. Fixing the split at 50/50 (ablation A1) changed its return only
+from 0.67% to 0.60% a year, so each venue now runs its own MILP on $500k (6 positions max), like the
+Phase 3 rules. Numbers below are the single-venue rerun; the multi-venue runs still count as trials.
+
 ## Decision
 
 **The MILP does not add value under the pre-registered rule.** Its Sharpe was lower than passive
-BTC+ETH (0.67 vs 1.10; P(not better) = 0.63, needed < 0.10), and it was positive in only 2 of 5 years.
+BTC+ETH (0.55 vs 1.10; P(not better) = 0.66, needed < 0.10), and it was positive in only 2 of 5 years.
 
 *Corrections, 2026-10-29. Two engine bugs found after the first run were fixed and everything rerun:
 (1) delisted coins were held forever with no price (now closed at last prices after 3 days); (2) the
@@ -20,35 +25,31 @@ attributed to the MILP were the engine's drift-chasing.*
 
 ## Results (2022-01 to 2026-10, $1M, excess of T-bills)
 
-| Run | Excess % a year | Sharpe | Turnover × NAV | Costs % a year | Deflated Sharpe (13 trials) |
+| Run | Excess % a year | Sharpe | Turnover × NAV | Costs % a year | Deflated Sharpe (20 trials) |
 |---|---|---|---|---|---|
-| S1 passive BTC+ETH (benchmark) | 0.36 | 1.10 | 0.1 | 0.03 | 2% |
+| S1 passive BTC+ETH (benchmark) | 0.36 | 1.10 | 0.1 | 0.03 | 4% |
 | **S1 passive, cross-margin** | **1.71** | **3.85** | 0.2 | 0.04 | **100%** |
-| **P MILP (primary)** | 0.67 | 0.67 | 5.3 | 1.07 | 0% |
-| R1 MILP, EWMA forecast | 1.48 | 1.00 | 6.8 | 1.38 | 1% |
-| R2 MILP, cross-margin | 1.17 | 1.19 | 6.4 | 1.28 | 4% |
-| A1 fixed 50/50, no transfers | 0.60 | 0.52 | 5.4 | 1.09 | 0% |
-| A2 no per-coin caps | 0.98 | 0.19 | 10.4 | 2.08 | 0% |
-| A3 7-day horizon | 0.82 | 0.83 | 1.6 | 0.30 | 1% |
+| **P MILP (primary)** | 0.63 | 0.55 | 5.2 | 1.05 | 0% |
+| R1 MILP, EWMA forecast | 1.52 | 0.90 | 6.7 | 1.34 | 2% |
+| R2 MILP, cross-margin | 1.27 | 1.13 | 6.3 | 1.26 | 8% |
+| A2 no per-coin caps | 0.89 | 0.20 | 10.5 | 2.09 | 0% |
+| A3 7-day horizon | 0.84 | 0.74 | 1.6 | 0.30 | 1% |
 
 ## What the numbers say
 
 1. **Capital efficiency beats optimisation.** The best result is the simplest strategy with better
    margin: passive BTC+ETH with spot counted as collateral earned +1.71% a year over T-bills (Sharpe
    3.85), five times the no-cross-margin version, and it is the only run whose deflated Sharpe survives
-   all 13 trials. See also the [sensitivity study](sensitivity.md).
+   all 20 trials. See also the [sensitivity study](sensitivity.md).
 2. **The MILP collects carry but gives much of it back in trading:** 2.4% of NAV in funding, 1.1% in
-   costs. After the fixes it makes about **100 opens and closes a year** (median about $43k) and about
-   **105 resizes a year**. The opens and closes are the real churn: the objective charges a new
+   costs. It makes about **90 opens and closes a year** and about **110 resizes a year**. The opens and closes are the real churn: the objective charges a new
    position's round trip but treats exiting a held one as free, so it rotates whenever a slightly
    better forecast appears. Phase 4b tests an exit-side penalty and a no-trade band.
 3. **The ablations agree.** A 7-day horizon (a stricter effective hurdle) traded a third as much and
-   did better (Sharpe 0.83 vs 0.67). Removing per-coin caps raised the return a little but made it far
-   riskier (Sharpe 0.19; worst 30 days −7.2% vs −1.3%). Fixed vs flexible venue split barely matters
-   (0.60% vs 0.67%), consistent with the venues' tight integration in Phase 1.
-4. **Risk controls worked:** worst 30 days −1.3% (S3: −3.5%), 4 liquidations (S3: 7), venue exposure
-   held at the 60% cap.
-5. **The EWMA forecast helps again** (R1: 1.48% vs 0.67%), as in Phases 2 and 3, but no MILP variant
+   did slightly better (Sharpe 0.74 vs 0.55). Removing per-coin caps raised the return a little but made
+   it far riskier (Sharpe 0.20; worst 30 days −6.1% vs −1.5%).
+4. **Risk controls worked:** worst 30 days −1.5% (S3: −3.5%), 4 liquidations (S3: 7).
+5. **The EWMA forecast helps again** (R1: 1.52% vs 0.63%), as in Phases 2 and 3, but no MILP variant
    survives deflation.
 
 ## Figures

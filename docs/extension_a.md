@@ -1,5 +1,8 @@
 # Extension A: does the no-arbitrage band widen with frictions? (2026-10-30)
 
+> **Not part of the paper's results.** Removed on 2026-10-31 when the project narrowed to single-venue
+> carry; kept for reference.
+
 Generated tables: [`reports/extension_a/report.md`](../reports/extension_a/report.md).
 Code: [`research/extension_a_onchain.py`](../research/extension_a_onchain.py).
 Spec (fixed before analysis): [plan](plan.md#extension-a-spec-does-the-no-arbitrage-band-widen-with-frictions-fixed-2026-10-30-before-any-analysis).

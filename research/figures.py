@@ -16,11 +16,12 @@ import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 from matplotlib.colors import LinearSegmentedColormap  # noqa: E402
 from phase3_backtest import BASELINE, COSTS, NAV, START, STRATEGIES, attribution, backtest, daily_excess  # noqa: E402
+from phase4_allocator import milp_backtest  # noqa: E402
 
-from funding.backtest import run, run_joint  # noqa: E402
+from funding.backtest import run  # noqa: E402
 from funding.dataset import VENUES, investable_rows, load, tbill_8h  # noqa: E402
 from funding.forecast import walk_forward  # noqa: E402
-from funding.milp import Params, make_allocator  # noqa: E402
+from funding.milp import Params  # noqa: E402
 
 OUT = Path("reports/figures")
 # Validated default palette (categorical slots 1-4), chart chrome and diverging poles, light mode.
@@ -83,8 +84,7 @@ def main():
             "liquidation", "cash", "traded"]
     ledgers["Passive, cross-margin"] = sum(b[cols] for b in books).assign(tbill=books[0]["tbill"])
     print("running MILP")
-    milp = run_joint(panels, make_allocator(fc30["M3_regression"], panels, tbill, Params()), NAV, tbill, COSTS,
-                     None, START)
+    milp = milp_backtest(panels, fc30["M3_regression"], tbill, Params())
     trades["MILP allocator"], positions = milp.attrs["trades"], milp.attrs["positions"]
     milp.attrs = {}  # keep logs out of pandas metadata before combining frames
     ledgers["MILP allocator"] = milp

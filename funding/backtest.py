@@ -260,57 +260,30 @@ def run(panel: dict, forecast: pd.Series, rule: Rule, slots: int, capital: float
     return pd.DataFrame(rows).set_index("ts")
 
 
-# A daily allocator sees (t, books, capital in transit) and returns
-# ({venue: {coin: target notional}}, {(from, to): amount}).
-Allocator = Callable[[pd.Timestamp, dict, list], tuple[dict, dict]]
+# A daily allocator sees (t, book) and returns {coin: target notional} (NaN = hold as is).
+Allocator = Callable[[pd.Timestamp, "Book"], dict]
 
 
-def run_joint(panels: dict, decide: Allocator, nav: float, tbill: pd.Series, costs: dict[str, Costs],
-              margin: Callable[[str], float] | None = None, start: str = "2022-01-01",
-              transfer_fee: float = 10.0) -> pd.DataFrame:
-    """Both venues as one portfolio: one decision a day at the 00:00 close, executed at the next close.
-
-    Transfers leave the source venue at execution and arrive one day later; in transit they earn
-    nothing. ``equity_start`` of the combined ledger includes capital in transit.
-    """
-    books = {v: Book(panels[v], nav / len(panels), costs[v], margin, name=v) for v in panels}
+def run_daily(panel: dict, decide: Allocator, capital: float, tbill: pd.Series, costs: Costs,
+              margin: Callable[[str], float] | None = None, start: str = "2022-01-01", name: str = "") -> pd.DataFrame:
+    """One venue's book with one decision a day at the 00:00 close, executed at the next close."""
+    book = Book(panel, capital, costs, margin, name=name)
     snapshots = []  # daily positions: (ts, venue, coin, notional)
-    transit: list[tuple[pd.Timestamp, str, float]] = []  # (arrival, destination, amount)
     pending, rows = None, []
-    for t in next(iter(panels.values()))["funding"].loc[start:].index:
+    for t in panel["funding"].loc[start:].index:
         tb = tbill.get(t, 0.0)
-        for b in books.values():
-            b.begin(t, tb)
-        for item in [i for i in transit if i[0] <= t]:
-            books[item[1]].equity += item[2]
-            transit.remove(item)
+        book.begin(t, tb)
         if pending is not None:
-            targets, transfers = pending
-            for v, b in books.items():
-                b.execute_notional(targets.get(v, {}))
-            for (src, dst), amount in transfers.items():
-                amount = min(amount, max(books[src].free_capital(), 0.0))
-                if amount > 0:
-                    books[src].equity -= amount
-                    books[src].rec["costs"] += transfer_fee
-                    transit.append((t + pd.Timedelta(days=1), dst, amount))
+            book.execute_notional(pending)
             pending = None
-        in_transit = sum(a for _, _, a in transit)
-        parts = [b.finish(tb) for b in books.values()]
-        total = sum(p["equity_start"] for p in parts) + in_transit
-        row = {k: sum(p[k] for p in parts) for k in parts[0] if k not in ("ts", "tbill")}
-        row.update(ts=t, tbill=tb, equity_start=total, in_transit=in_transit,
-                   max_venue_share=max(b.equity for b in books.values()) / (total + row["pnl"]))
-        rows.append(row)
+        rows.append(book.finish(tb))
         if t.hour == 0:
-            snapshots += [(t, v, c, b.notional(c)) for v, b in books.items() for c in b.q]
-            pending = decide(t, books, transit)
+            snapshots += [(t, name, c, book.notional(c)) for c in book.q]
+            pending = decide(t, book)
     out = pd.DataFrame(rows).set_index("ts")
     out.attrs["positions"] = pd.DataFrame(snapshots, columns=["ts", "venue", "coin", "notional"])
-    out.attrs["coin_pnl"] = pd.DataFrame([x for b in books.values() for x in b.coin_pnl],
-                                         columns=["ts", "venue", "coin", "funding", "basis"])
-    out.attrs["trades"] = pd.DataFrame([x for b in books.values() for x in b.trades],
-                                       columns=["ts", "venue", "coin", "kind", "notional"])
+    out.attrs["coin_pnl"] = pd.DataFrame(book.coin_pnl, columns=["ts", "venue", "coin", "funding", "basis"])
+    out.attrs["trades"] = pd.DataFrame(book.trades, columns=["ts", "venue", "coin", "kind", "notional"])
     return out
 
 

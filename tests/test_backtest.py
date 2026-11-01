@@ -73,25 +73,22 @@ def test_coin_without_a_perp_price_is_not_entered():
     assert np.isfinite(out["equity_start"]).all() and out.loc[idx[26]:idx[29], "n_held"].eq(0).all()
 
 
-def test_joint_transfer_conserves_capital_and_arrives_next_day():
-    from funding.backtest import run_joint
+def test_daily_allocator_trades_once_a_day_at_the_next_close():
+    from funding.backtest import run_daily
 
     panel, idx = _panel()
-    panels = {"a": panel, "b": panel}
-    sent = {"done": False}
+    calls = []
 
-    def decide(t, books, transit):  # move $100k from a to b once, hold nothing
-        if sent["done"]:
-            return {}, {}
-        sent["done"] = True
-        return {}, {("a", "b"): 100_000}
+    def decide(t, book):  # always ask for $100k of A
+        calls.append(t)
+        return {"A": 100_000.0}
 
-    out = run_joint(panels, decide, 1e6, pd.Series(0.0, index=idx), {"a": Costs(), "b": Costs()},
-                    start=str(idx[25]))
-    total = out["equity_start"] + out["pnl"]
-    assert np.allclose(total.iloc[-1], 1e6 - 10.0)  # only the $10 transfer fee is lost
-    moving = out.index[out["in_transit"] > 0]
-    assert len(moving) == 3  # three 8-hour windows = one day in transit
+    out = run_daily(panel, decide, 1e6, pd.Series(0.0, index=idx), Costs(), start=str(idx[25]), name="a")
+    assert all(t.hour == 0 for t in calls)
+    first = out.index[out["n_held"] > 0][0]
+    assert first == calls[0] + pd.Timedelta(hours=8)  # executed at the next close
+    trades = out.attrs["trades"]
+    assert len(trades) == 1 and trades["notional"].iloc[0] == 100_000  # unchanged target: no re-trade
 
 
 def test_delisted_coin_is_closed_at_last_prices_after_three_days():

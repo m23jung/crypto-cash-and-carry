@@ -1,4 +1,5 @@
-"""Phase 4b: MILP with churn controls under realistic portfolio margin. Spec: docs/plan.md, "Phase 4b spec".
+"""Phase 4b: single-venue MILP with churn controls under realistic portfolio margin. Spec: docs/plan.md,
+"Phase 4b spec".
 
 Run after research/phase4_allocator.py:  python research/phase4b_allocator.py   (writes reports/phase4b/report.md)
 """
@@ -11,13 +12,14 @@ from pathlib import Path
 
 import pandas as pd
 from phase3_backtest import BASELINE, COSTS, NAV, START, STRATEGIES, YEARS, attribution, daily_excess, summary
+from phase4_allocator import EARLIER_TRIALS, milp_backtest
 from sensitivity import scaled
 
 from funding import metrics
-from funding.backtest import run, run_joint
+from funding.backtest import run
 from funding.dataset import VENUES, investable_rows, load, tbill_8h
 from funding.forecast import walk_forward
-from funding.milp import MAJORS, Params, make_allocator
+from funding.milp import MAJORS, Params
 
 OUT = Path("reports/phase4b/report.md")
 PM_MARGIN = lambda c: 1.05 if c in MAJORS else 1.30  # noqa: E731  portfolio / unified margin
@@ -26,7 +28,7 @@ PRIMARY, BENCH = "4b-P MILP, churn controls, portfolio margin", "S1 passive BTC+
 
 
 def phase4_trial_sharpes() -> list[float]:
-    """Sharpes of the 13 runs already counted in Phase 4 (read from its report)."""
+    """Sharpes of the runs shown in the Phase 4 report (read from it)."""
     text = Path("reports/phase4/report.md").read_text().split("## 2.")[0]
     return [float(row.split("|")[4]) for row in text.splitlines() if re.match(r"\| [SPRA]", row)]
 
@@ -44,9 +46,6 @@ def main():
     rows = pd.concat({v: investable_rows(p) for v, p in panels.items()}, names=["venue"])
     fc30 = walk_forward(rows, target="target_30d")
 
-    def milp(fc, params, margin, costs=COSTS):
-        return run_joint(panels, make_allocator(fc, panels, tbill, params), NAV, tbill, costs, margin, START)
-
     s1_costs = {v: dataclasses.replace(c, margin_buffer=0.05) for v, c in COSTS.items()}
     books = [run(panels[v], pd.Series(dtype=float), STRATEGIES[BASELINE][0](s1_costs[v]), 2, NAV / 2, tbill,
                  s1_costs[v], START) for v in VENUES]
@@ -62,11 +61,11 @@ def main():
     }
     for name, args in runs.items():
         print("running", name, flush=True)
-        ledgers[name] = milp(*args)
+        ledgers[name] = milp_backtest(panels, args[0], tbill, args[1], args[2], args[3])
 
     rets = {n: daily_excess(ld) for n, ld in ledgers.items()}
     counted = [PRIMARY, "4b-R1 same, EWMA forecast", BENCH]
-    trials = phase4_trial_sharpes() + [metrics.sharpe(rets[n]) for n in counted]
+    trials = phase4_trial_sharpes() + EARLIER_TRIALS + [metrics.sharpe(rets[n]) for n in counted]
     out = ["# Phase 4b: MILP with churn controls and realistic margin\n\n"
            f"NAV ${NAV:,.0f}, {START[:4]}-01 to {ledgers[PRIMARY].index[-1]:%Y-%m}, returns in excess of T-bills. "
            "Changes from Phase 4: exit-side turnover penalty, no-trade band (max($5k, 10%)), portfolio margin "
@@ -79,7 +78,8 @@ def main():
     table["deflated Sharpe"] = [metrics.deflated_sharpe(rets[n], trials) if n in counted else float("nan")
                                 for n in table.index]
     section("1. Summary (full period)", table,
-            f"Deflated Sharpe over {len(trials)} trials (Phase 4's 13 plus the three counted here). The check "
+            f"Deflated Sharpe over {len(trials)} trials (Phase 4's, the earlier multi-venue runs and the three "
+            "counted here). The check "
             "and sensitivity rows are not trials.")
     section("2. Excess return by year (%)",
             pd.DataFrame({n: r.groupby(r.index.year).sum() * 100 for n, r in rets.items()}).T)

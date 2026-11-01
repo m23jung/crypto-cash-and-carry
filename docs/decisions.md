@@ -2,6 +2,17 @@
 
 Newest first. Every analysis choice that could change a result is recorded here with its date.
 
+- **2026-10-31** Narrowed the project to single-venue carry. Cross-exchange arbitrage (Phase 1 test and its
+  sensitivity) and Extension A removed from the paper and README; code and reports kept. The MILP now runs
+  one book per venue ($500k each, 6 positions max) instead of jointly allocating and transferring capital
+  between venues, which added nothing (A1: 0.60% vs 0.67%). Decided after seeing results; the earlier
+  multi-venue runs (Phase 4 P, R1, R2, A1, A2, A3; 4b-P, 4b-R1) still count in the deflated Sharpe.
+  Multi-venue code and reports: git history (d47bd09).
+
+- **2026-10-31 (correction)** The no-trade band could be met by buying and selling the same coin on the same
+  day (a wash trade that clears the minimum trade size while moving the position by less). Added a
+  buy-or-sell binary per coin. Found by a new unit test while porting the MILP to single-venue books.
+
 - **2026-10-31 (correction)** Wording fix in paper 3.1: funding gaps do not "reopen in the same direction";
   a top-20% gap has the same sign 7 days later only 51% of the time. Added a decomposition of where the
   large gaps come from (off-floor premiums, settlement-interval mismatches, small coins).

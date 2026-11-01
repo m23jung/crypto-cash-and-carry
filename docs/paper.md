@@ -4,16 +4,14 @@
 
 **Question.** Buying spot crypto and shorting the perpetual future ("perp") collects the perp's funding
 rate with no price exposure: economically, a secured loan of cash. Can the trade be improved by
-arbitraging funding across exchanges, by forecasting funding, or by optimising which coins to hold?
+forecasting funding, or by optimising which coins to hold and how much?
 
 **Approach.** Free exchange data for 274 coins on Binance and Bybit (2021–2026, including later-delisted
-coins), plus two on-chain venues (Hyperliquid, dYdX) from 2023. Every test had its decision rule written
-down before it ran, and every variant is counted when judging statistical significance.
+coins), each exchange run as its own book. Every test had its decision rule written down before it ran,
+and every variant is counted when judging statistical significance.
 
 **Findings.**
 
-- **Cross-venue arbitrage does not pay.** Binance and Bybit funding is 0.95 correlated; gaps close within
-  hours and rarely exceed trading costs. Gaps to an on-chain venue are about twice as wide.
 - **Carry over cash collapsed after 2021.** The exchange's funding floor (10.95% a year) stayed fixed while
   T-bills rose from 0% to 5%.
 - **Funding is forecastable, but the edge is about the size of trading costs.**
@@ -25,7 +23,7 @@ down before it ran, and every variant is counted when judging statistical signif
 ![Cumulative excess return](../reports/figures/1_cumulative_excess_return.png)
 
 *Figure 1. Cumulative return over T-bills, $1M across both exchanges, after all costs (2022–2026). Labelled
-dips are short-perp liquidations in price spikes on small coins (Section 3.3).*
+dips are short-perp liquidations in price spikes on small coins (Section 3.2).*
 
 ---
 
@@ -60,7 +58,8 @@ All results below are in excess of the 3-month T-bill, net of all costs.
 ## 2. Data
 
 - **Exchanges:** Binance and Bybit (funding, daily volume, 8-hour spot and perp prices, 2021–2026);
-  Hyperliquid and dYdX funding from 2023; 3-month T-bill from FRED.
+  3-month T-bill from FRED. Each exchange is a separate $500k book: every position is spot and perp on the
+  same exchange.
 - **Universe:** each month, the top 30 coins by trailing Binance volume among coins on both exchanges,
   using only data available at the time: **274 coins**, including coins later delisted.
 - **Investable:** in that month's universe, with a spot market on the same exchange and a perp–spot gap
@@ -69,65 +68,7 @@ All results below are in excess of the 3-month T-bill, net of all costs.
 
 ## 3. What was tried
 
-### 3.1 Cross-exchange arbitrage
-
-**Idea.** If funding differs between exchanges, short the perp where funding is high and buy it where it is
-low. The position is price-neutral and collects the gap.
-
-**Test** (decision rule fixed in advance):
-
-- Signal: the average Binance–Bybit funding gap over the previous 3 days.
-- Outcome: the gap collected over the next 7 days, in the signal's direction.
-- Pass: the top 20% of signals must beat the 21 bp round-trip cost on average **and** in at least 4 of 6 years.
-
-**Result: fails.** The top 20% collected 25 bp on average but beat costs in only 3 of 6 years.
-
-| | 2021 | 2022 | 2023 | 2024 | 2025 | 2026 |
-|---|---|---|---|---|---|---|
-| Funding correlation, Binance vs Bybit | 0.71 | 0.82 | 0.95 | 0.95 | 0.94 | 0.95 |
-| Top-20% gap collected over 7 days (bp) | 55.8 | 17.6 | 21.1 | 21.0 | 20.3 | 9.8 |
-
-**Why.** Arbitrageurs already keep the two largest exchanges in line: the typical gap is 0.2–0.7 bp per
-8 hours and halves in about 4.5 hours. What is left sits inside the cost of trading it.
-
-**Including prices and better exits does not change this.** The test above counted funding only and
-exited after a fixed 7 days. Adding the change in the two perps' prices, and two better-motivated exits,
-for the same trades (2021–2026, after the 21 bp round trip):
-
-| Exit | Average hold | Funding | Price change | Net of costs | Share profitable |
-|---|---|---|---|---|---|
-| Fixed 7 days | 7.0 days | +24.9 bp | −0.9 bp | +3.0 bp | 43% |
-| When the funding gap closes | 1.6 days | +13.9 bp | −1.8 bp | −8.9 bp | 19% |
-| When the prices converge | 1.3 days | +3.9 bp | +5.0 bp | −12.1 bp | 15% |
-
-- At 8-hour closes the two perps are already priced the same (median gap at entry 0 bp; the high-funding
-  perp was the dearer one only 48% of the time), so there is no price convergence left to collect. Price
-  gaps between major exchanges close within seconds.
-- Funding gaps are noisy: a single window near zero does not mean the gap is over, so exiting on it pays a
-  full round trip for one or two days of carry. A gap of about 3 bp per 8 hours needs about a week to cover
-  21 bp, yet a week later its sign is a coin flip (the same 51% of the time).
-- Why funding can differ while prices match: each venue's funding measures its perp against *its own*
-  spot index, using order-book impact prices, its own averaging and settlement interval, and a clamp that
-  hides small differences. Both venues sit exactly on the floor in 31% of windows; the large gaps come
-  when at least one leaves it (88% of top-20% windows), mostly in small coins (BTC and ETH are 3% of them).
-
-**Where moving money is harder, gaps are wider.** On Hyperliquid, an on-chain exchange where capital moves
-by bridging stablecoins rather than an exchange withdrawal, gaps against Binance on the same coins are:
-
-| | Binance–Hyperliquid | Binance–Bybit (same coins) |
-|---|---|---|
-| Median gap (bp per 8 hours) | 0.62 | 0.32 |
-| 90th-percentile gap | 3.40 | 1.63 |
-| Top-20% gap collected over 7 days | 46 bp | 13 bp |
-| Share of those trades beating the round-trip fee | 69% | 24% |
-
-- The largest Hyperliquid gaps beat trading fees most of the time, but only before bridging costs,
-  transfer delays and on-chain risk, which is exactly what keeps them open.
-- The gap is shrinking: the top-20% 7-day gap fell from 54 bp (2024) to 14 bp (2026).
-- dYdX shows wider gaps too, but its funding formula has no floor, so its gaps are largely mechanical and
-  are not counted (Appendix A).
-
-### 3.2 Forecasting funding
+### 3.1 Forecasting funding
 
 **Setup** (details in Appendix B):
 
@@ -149,7 +90,7 @@ by bridging stablecoins rather than an exchange withdrawal, gaps against Binance
 - **The catch:** rotating weekly into the top 20% costs about 15.6% a year (0.38% round trip × 52), about
   the same as the extra funding it identifies.
 
-### 3.3 Rules for choosing coins
+### 3.2 Rules for choosing coins
 
 **Strategies** ($1M split across both exchanges, margin factor 1.5, 2022–2026):
 
@@ -158,7 +99,7 @@ by bridging stablecoins rather than an exchange withdrawal, gaps against Binance
 | **Passive** | none | hold BTC and ETH on both exchanges, always | only if the coin stops being investable | n/a |
 | **Naive top 5** | 7-day forecast | the 5 coins with the highest forecast | drops out of the top 5 | every 7 days |
 | **Cost-aware top 5** | 7-day forecast | forecast beats T-bills plus the round-trip cost spread over 7 days | forecast falls below T-bills | every 8 hours |
-| **MILP** (Section 3.4) | 30-day forecast | chosen by the optimiser, net of trading costs | chosen by the optimiser | daily |
+| **MILP** (Section 3.3) | 30-day forecast | chosen by the optimiser, net of trading costs | chosen by the optimiser | daily |
 
 - **Forecasts:** the regression is refitted monthly, but each coin's forecast is recomputed every 8 hours
   from the latest funding.
@@ -193,19 +134,20 @@ P(not better) = 0.51), and none survives the correction for the number of varian
   Each costs a 2% penalty plus a loss on the leftover spot, which is sold at the next 8-hour close after
   the spike has partly reversed. BTC and ETH were never liquidated.
 
-### 3.4 A daily optimiser (MILP)
+### 3.3 A daily optimiser (MILP)
 
-**How it is used.** Once a day, a mixed-integer program (solved with HiGHS) decides how much of each coin to
-hold on each exchange, and whether to move capital between exchanges. Trades execute at the next 8-hour
-close.
+**How it is used.** Once a day, on each exchange separately, a mixed-integer program (solved with HiGHS)
+decides which coins to hold and how much of each. Trades execute at the next 8-hour close. It re-solves
+daily but trades only when the extra expected carry beats the cost.
 
 - **Maximises:** expected funding over 30 days, minus the T-bill on capital used, minus trading costs
   (charged in full when a position opens), minus a risk penalty for small and newly listed coins.
-- **Constraints:** capital per exchange; per-coin caps (25% of an exchange's capital for BTC/ETH, 10% other
-  coins, 5% coins listed under 90 days); at most 1% of a coin's daily volume; $10k minimum position;
-  at most 12 positions; at most 60% of capital on one exchange; transfers of at least $50k that arrive a
-  day later.
-- **Forecast:** the regression, refitted for a 30-day target.
+- **Constraints:** the exchange's capital; per-coin caps (25% of capital for BTC/ETH, 10% other coins, 5%
+  coins listed under 90 days); at most 1% of a coin's daily volume; $10k minimum position; at most 6
+  positions.
+- **Forecast:** the regression, refitted for a 30-day target (same inputs as the 7-day one). Spreading the
+  0.38% round trip over 30 rather than 7 days lowers the cost hurdle from about 20% to 4.6% a year. A
+  7-day version traded a third as much and did slightly better (+0.84%, Sharpe 0.74).
 - Full formulation: Appendix D.
 
 **Results:**
@@ -213,8 +155,8 @@ close.
 | | Margin | Excess return a year | Sharpe | Turnover | Costs a year |
 |---|---|---|---|---|---|
 | Passive BTC+ETH | 1.50 | +0.36% | 1.10 | 0.1 | 0.03% |
-| **MILP** | 1.50 | +0.67% | 0.67 | 5.3 | 1.07% |
-| MILP with turnover controls* | 1.05 / 1.30 | +1.53% | 1.32 | 4.1 | 0.82% |
+| **MILP** | 1.50 | +0.63% | 0.55 | 5.2 | 1.05% |
+| MILP with turnover controls* | 1.05 / 1.30 | +1.45% | 1.21 | 4.2 | 0.84% |
 | **Passive BTC+ETH, portfolio margin** | **1.05** | **+1.94%** | **4.18** | 0.2 | 0.04% |
 
 \* *Exit costs charged in the objective, a no-trade band (trades smaller than $5k or 10% skipped), and
@@ -224,9 +166,9 @@ realistic portfolio margin (1.05 for BTC/ETH, 1.30 for other coins).*
 
 - It does what it was designed to: fully invested during the high-funding periods of 2024, in T-bills
   otherwise, with fewer liquidations than the coin-picking rules (Figure 2).
-- But it **gives much of the carry back in trading:** about 100 opens and closes a year as forecasts
-  change (Figure 3). Turnover controls cut that by a third and doubled the return, still well short of
-  passive under the same margin.
+- But it **gives much of the carry back in trading:** about 90 opens and closes a year as forecasts
+  change (Figure 3). Turnover controls cut that to about 65 and, with portfolio margin, more than doubled
+  the return, still well short of passive under the same margin.
 - The extra funding in small coins comes with **higher margin factors, liquidations and basis losses**.
   Passive BTC+ETH trades almost never and ties up the least capital (Figure 4).
 
@@ -246,7 +188,7 @@ the interest given up on capital tied up in positions.*
 
 ## 4. What is left: single-exchange basis carry
 
-With selection and arbitrage ruled out, the return is the carry itself, and how much of it survived
+With selection ruled out, the return is the carry itself, and how much of it survived
 2021 depends on the regime:
 
 | Year | Context | BTC funding (% a year) | Median coin funding | T-bill | Funding prints negative |
@@ -317,7 +259,7 @@ about 0.38% per round trip):
 | k | 0.25 | 0.5 | 1 | 2 |
 |---|---|---|---|---|
 | Passive BTC+ETH (margin 1.10) | +1.56% | +1.43% | +1.18% | +0.68% |
-| MILP (margin 1.50) | +1.06% | +0.82% | +0.67% | +0.31% |
+| MILP (margin 1.50) | +1.12% | +0.82% | +0.63% | +0.28% |
 
 Even with maker or VIP fees, the MILP stays below passive under the same margin.
 
@@ -325,13 +267,10 @@ Even with maker or VIP fees, the MILP stays below passive under the same margin.
 
 - The carry that survived 2021 is a **financing spread**: funding near an exchange-set floor, earned against
   the cost of cash.
-- It cannot be improved by arbitrage between the largest exchanges (already integrated), by coin selection
-  (the edge is about the cost of trading it), or by a constrained optimiser (it gives the carry back in
-  turnover).
+- It cannot be improved by coin selection (the edge is about the cost of trading it) or by a constrained
+  optimiser (it gives the carry back in turnover).
 - What moves returns is the balance sheet: **the margin factor, whether collateral earns interest, and
   execution cost**.
-- Where moving capital is harder (on-chain exchanges), wider gaps persist, consistent with the cost of
-  arbitrage capital being the binding constraint.
 
 **Limitations**
 
@@ -346,8 +285,7 @@ Even with maker or VIP fees, the MILP stays below passive under the same margin.
 ## Appendix A. Data and universe
 
 - **Sources:** Binance USD-M API and bulk archive (data.binance.vision), used for delisted symbols the live
-  API no longer serves; Bybit v5 API (spot only from July 2021); Hyperliquid and dYdX public APIs (hourly
-  funding); FRED for the T-bill, lagged one day.
+  API no longer serves; Bybit v5 API (spot only from July 2021); FRED for the T-bill, lagged one day.
 - **Universe:** monthly top 30 by trailing 30-day Binance perp volume among coins traded on both exchanges on
   at least 25 of the previous 30 days. Stablecoins excluded. Stock, ETF and commodity perps (Binance tag
   `TRADIFI_PERPETUAL`) excluded; by 2026 they held about a third of top-30 volume.
@@ -356,10 +294,6 @@ Even with maker or VIP fees, the MILP stays below passive under the same margin.
   multipliers (e.g. 1000PEPE).
 - **Investable:** spot market on the same exchange, and a perp–spot gap within ±20% (larger gaps are
   collapses or broken pairs, e.g. LUNA in May 2022). Under 0.5% of windows are missing.
-- **On-chain comparison:** Hyperliquid has the same 0.01% floor as Binance (median coin exactly on it), so its
-  gaps are comparable. dYdX's funding has no floor and no dead zone (median 0.00% a year), so small price
-  moves pass straight into it while Binance's stays flat: correlation 0.09 and largely mechanical gaps.
-  Each on-chain pair is compared with Binance–Bybit on the same coins and windows.
 
 ## Appendix B. Research protocol
 
@@ -367,19 +301,21 @@ Even with maker or VIP fees, the MILP stays below passive under the same margin.
 
 | Test | Rule | Outcome |
 |---|---|---|
-| Cross-exchange arbitrage | Top-20% gap beats 21 bp on average and in ≥ 4 of 6 years | Fail (3 of 6) |
 | Forecast model choice | Regression used only if it beats last value and EWMA on error in ≥ 4 of 5 years | Pass (4 of 5) |
 | Forecast-driven selection | Cost-aware top 5 beats passive Sharpe (P < 0.10) and is positive in ≥ 3 of 5 years | Fail (P = 0.51) |
-| MILP | Beats passive Sharpe (P < 0.10) and positive in ≥ 3 of 5 years | Fail (P = 0.63) |
+| MILP | Beats passive Sharpe (P < 0.10) and positive in ≥ 3 of 5 years | Fail (P = 0.66) |
 | MILP with turnover controls | Beats passive at the same margin (P < 0.10), positive in ≥ 3 of 5 years | Fail (P = 0.99) |
-| On-chain gaps | Both on-chain pairs show wider and slower-closing gaps in ≥ 2 of 3 years | Pass |
+
+The MILP originally allocated across both exchanges jointly and could move capital between them. Fixing
+the split at 50/50 changed its return only from +0.67% to +0.60% a year, so it was simplified to one book
+per exchange after these results; all earlier runs still count as trials.
 
 **Statistics used:**
 
 - **Paired block bootstrap:** resamples blocks of days from two strategies together, to test whether one
   Sharpe ratio is really higher than another.
 - **Deflated Sharpe ratio:** the probability that a strategy's Sharpe is real after accounting for how many
-  variants were tried (16 here). The best of many skill-free strategies looks good by luck; this measure
+  variants were tried (23 here). The best of many skill-free strategies looks good by luck; this measure
   asks whether a result beats that luck benchmark. Only passive BTC+ETH under portfolio margin survives.
 - **Rank IC:** at each point in time, the correlation between how coins are ranked by forecast and how they
   rank by actual funding afterwards, averaged over time. Zero is no information; above 0.05 is useful in
@@ -410,23 +346,22 @@ Even with maker or VIP fees, the MILP stays below passive under the same margin.
 
 ## Appendix D. MILP formulation
 
-For each candidate coin *i* on exchange *v*, with current notional x⁰ and forecast annual funding f:
+Solved separately for each exchange, with capital C. For each candidate coin, with current notional x⁰ and
+forecast annual funding f:
 
-- **Variables:** target notional x ≥ 0; buys b ≥ 0; sells s ≥ 0 (s ≤ x⁰); open position y ∈ {0, 1}; for
-  each direction between the two exchanges, transfer amount g ≥ 0 and transfer flag z ∈ {0, 1}.
+- **Variables:** target notional x ≥ 0; buys b ≥ 0; sells s ≥ 0 (s ≤ x⁰); open position y ∈ {0, 1}.
 - **Objective (maximise, over a horizon H of 30 days):**
-  Σ x · (f − m·r − penalty) · H − Σ b · round-trip cost − Σ g · r / 365 − $10 × Σ z,
+  Σ x · (f − m·r − penalty) · H − Σ b · round-trip cost,
   where m is the margin factor, r the T-bill rate, and the penalty is 0% (BTC/ETH), 3% (other coins) or 10%
   (coins listed under 90 days) a year.
 - **Constraints:**
   - x = x⁰ + b − s;
-  - x ≤ cap · y and x ≥ $10k · y, where cap = min(per-coin share of exchange capital, 1% of daily volume);
-  - Σ y ≤ 12;
-  - Σ m · x on each exchange ≤ its capital − transfers out + transfers arriving;
-  - each exchange ≤ 60% of total capital after transfers;
-  - $50k · z ≤ g ≤ total capital · z.
+  - x ≤ cap · y and x ≥ $10k · y, where cap = min(per-coin share of C, 1% of daily volume);
+  - Σ y ≤ 6;
+  - Σ m · x ≤ C.
 - **Turnover-controlled version:** sells also pay the exit half of the round trip, and each held position either
-  stays unchanged or trades by at least max($5k, 10% of the position).
+  stays unchanged or trades by at least max($5k, 10% of the position). A buy-or-sell binary per coin stops a
+  same-day buy and sell from meeting that minimum while barely moving the position.
 - Solved daily with HiGHS (via `scipy.optimize.milp`); positions left unchanged are held as is rather than
   re-traded as prices drift.
 
@@ -441,22 +376,21 @@ Errors found after first results were fixed, tested and rerun; no decision chang
 | Position charts | Delisted coins (e.g. MATIC after its rename) held forever with no price | Active strategies improved |
 | Trade counts | Optimiser positions re-traded as prices drifted | MILP resizes fell from ~615 to ~105 a year |
 | Data end date | Final window lacked a funding print, forcing an artificial exit | Passive Sharpe 1.01 → 1.10 |
+| Unit test | The no-trade band could be met by buying and selling the same coin on one day | Fixed with a buy-or-sell binary |
 
 ## Appendix F. Reproducing the results
 
 ```bash
 python -m venv .venv && .venv/bin/pip install -e ".[dev]"
 .venv/bin/python research/build_data.py              # data (~1.5 h the first time; resumable)
-.venv/bin/python research/phase1_descriptives.py     # cross-exchange test and descriptives
+.venv/bin/python research/phase1_descriptives.py     # descriptives (funding regimes, floor, coverage)
 .venv/bin/python research/phase2_forecast.py         # investable set, forecasts
 .venv/bin/python research/phase3_backtest.py         # coin-selection rules
 .venv/bin/python research/phase4_allocator.py        # MILP
 .venv/bin/python research/phase4b_allocator.py       # MILP with turnover controls
 .venv/bin/python research/sensitivity.py             # margin, leverage, costs
-.venv/bin/python research/build_extensions.py hyperliquid && .venv/bin/python research/extension_a_onchain.py
 .venv/bin/python research/figures.py                 # figures
 .venv/bin/pytest                                     # tests
 ```
 
-Detailed write-ups per stage: `docs/phase1.md` to `docs/phase4b.md`, `docs/sensitivity.md`,
-`docs/extension_a.md`. Decision rules: `docs/plan.md`. Every decision and correction: `docs/decisions.md`.
+Detailed write-ups per stage: `docs/phase1.md` to `docs/phase4b.md`, `docs/sensitivity.md`. Decision rules: `docs/plan.md`. Every decision and correction: `docs/decisions.md`.
