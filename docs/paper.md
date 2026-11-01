@@ -90,6 +90,22 @@ low. The position is price-neutral and collects the gap.
 **Why.** Arbitrageurs already keep the two largest exchanges in line: the typical gap is 0.2–0.7 bp per
 8 hours and halves in about 4.5 hours. What is left sits inside the cost of trading it.
 
+**Including prices and better exits does not change this.** The test above counted funding only and
+exited after a fixed 7 days. Adding the change in the two perps' prices, and two better-motivated exits,
+for the same trades (2021–2026, after the 21 bp round trip):
+
+| Exit | Average hold | Funding | Price change | Net of costs | Share profitable |
+|---|---|---|---|---|---|
+| Fixed 7 days | 7.0 days | +24.9 bp | −0.9 bp | +3.0 bp | 43% |
+| When the funding gap closes | 1.6 days | +13.9 bp | −1.8 bp | −8.9 bp | 19% |
+| When the prices converge | 1.3 days | +3.9 bp | +5.0 bp | −12.1 bp | 15% |
+
+- At 8-hour closes the two perps are already priced the same (median gap at entry 0 bp; the high-funding
+  perp was the dearer one only 48% of the time), so there is no price convergence left to collect. Price
+  gaps between major exchanges close within seconds.
+- Funding gaps close quickly but tend to reopen in the same direction, so exiting early pays a full round
+  trip for one or two days of carry. A gap of about 3 bp per 8 hours needs about a week to cover 21 bp.
+
 **Where moving money is harder, gaps are wider.** On Hyperliquid, an on-chain exchange where capital moves
 by bridging stablecoins rather than an exchange withdrawal, gaps against Binance on the same coins are:
 

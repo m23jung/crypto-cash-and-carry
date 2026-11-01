@@ -2,6 +2,11 @@
 
 Newest first. Every analysis choice that could change a result is recorded here with its date.
 
+- **2026-10-31** Cross-exchange sensitivity (not a decision; exits fixed before running): Phase 1 trades
+  re-evaluated including the price leg and two alternative exits (funding gap closes; prices converge),
+  capped at 30 days. Price leg ≈ 0 (perps already converged at 8-hour closes); alternative exits worse
+  (−8.9 and −12.1 bp net vs +3.0 bp for the fixed 7 days). Added to paper section 3.1.
+
 - **2026-10-30** Extension A spec fixed before analysis, with a matched Binance–Bybit baseline (same
   coin-windows) and base-tier taker fees for Hyperliquid (0.045%) and dYdX (0.050%). Result: prediction
   HOLDS (Hyperliquid 2 of 3 years, dYdX 3 of 3). dYdX found to have no funding floor or dead zone, so its
