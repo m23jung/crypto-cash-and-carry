@@ -197,8 +197,8 @@ class Book:
         """Phase 4 allocator: trade each coin toward its target notional (0 or missing = close; NaN = hold
         as is, so a position the allocator left unchanged is not re-traded because its price moved).
 
-        Sells first, then buys limited by the capital actually on this venue (a planned transfer may
-        not have arrived yet; the next day's solve buys the rest). ``borrow=True`` lets buys exceed
+        Sells first, then buys limited by free capital (prices may have moved since the decision; the
+        next day's solve buys the rest). ``borrow=True`` lets buys exceed
         equity (leverage); negative cash then pays ``costs.borrow_rate``.
         """
         for c in [c for c in list(self.q) if self._priced(c)]:
