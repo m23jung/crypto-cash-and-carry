@@ -94,8 +94,8 @@ Right: rotating weekly into the top fifth, against the average coin.*
 - **The regression is the most accurate** (lowest error in 4 of 5 years) and is used downstream; the EWMA
   ranks coins slightly better.
 - **Funding is clearly forecastable.** Realised funding rises steadily from the lowest forecast fifth
-  (−24% a year) to the highest (+10%), and the forecasts sit close to the outcomes. A rank IC around 0.5
-  is very high (Appendix B).
+  (−24% a year) to the highest (+10%), and the forecasts sit close to the outcomes. The rank IC (correlation
+  between forecast and realised rankings) is about 0.5, very high by the standards of return forecasting.
 - **The catch is cost.** The top fifth earns about 9.7% a year more than the average coin, but about half
   of it changes each week, and replacing it at 0.38% per round trip costs about 10.4% a year. Net of
   rotation, the edge is gone.
@@ -197,7 +197,9 @@ in 2021, in bursts since.*
 - **The perp has traded below spot since 2022** (median −2 to −6 bp): more natural short sellers than
   leveraged buyers.
 - **More arbitrage capital** (spot ETFs and Ethena's USDe stablecoin in 2024) is a likely contributor, not
-  tested here.
+  tested here. The link between rallies and funding has weakened: ETH's August 2025 high (about ,830)
+  lifted BTC funding's 30-day average to only 9.3%, below the floor, against 40% in the early-2024 rally
+  (Figure 4).
 - **Fewer coins can be hedged:** new coins increasingly list as perps only, so spot is available for only
   72–78% of the top 30 by 2026, down from 100%.
 
@@ -277,17 +279,6 @@ The MILP originally allocated across both exchanges jointly and could move capit
 the split at 50/50 changed its return only from +0.67% to +0.60% a year, so it was simplified to one book
 per exchange after these results; all earlier runs still count as trials.
 
-**Statistics used:**
-
-- **Paired block bootstrap:** resamples blocks of days from two strategies together, to test whether one
-  Sharpe ratio is really higher than another.
-- **Deflated Sharpe ratio:** the probability that a strategy's Sharpe is real after accounting for how many
-  variants were tried (23 here). The best of many skill-free strategies looks good by luck; this measure
-  asks whether a result beats that luck benchmark. Only passive BTC+ETH under portfolio margin survives.
-- **Rank IC:** at each point in time, the correlation between how coins are ranked by forecast and how they
-  rank by actual funding afterwards, averaged over time. Zero is no information; above 0.05 is useful in
-  equity research; the forecasts here reach about 0.5 because funding is persistent.
-
 **Forecast details:**
 
 - Features: last funding; EWMAs with 1, 7 and 30-day half-lives; perp–spot gap; share of the last 3 days at
@@ -313,24 +304,59 @@ per exchange after these results; all earlier runs still count as trials.
 
 ## Appendix D. MILP Formulation
 
-Solved separately for each exchange, with capital C. For each candidate coin, with current notional x⁰ and
-forecast annual funding f:
+Solved once a day for each exchange separately. For each candidate coin $`i`$:
 
-- **Variables:** target notional x ≥ 0; buys b ≥ 0; sells s ≥ 0 (s ≤ x⁰); open position y ∈ {0, 1}.
-- **Objective (maximise, over a horizon H of 30 days):**
-  Σ x · (f − m·r − penalty) · H − Σ b · round-trip cost,
-  where m is the margin factor, r the T-bill rate, and the penalty is 0% (BTC/ETH), 3% (other coins) or 10%
-  (coins listed under 90 days) a year.
-- **Constraints:**
-  - x = x⁰ + b − s;
-  - x ≤ cap · y and x ≥ $10k · y, where cap = min(per-coin share of C, 1% of daily volume);
-  - Σ y ≤ 6;
-  - Σ m · x ≤ C.
-- **Turnover-controlled version:** sells also pay the exit half of the round trip, and each held position either
-  stays unchanged or trades by at least max($5k, 10% of the position). A buy-or-sell binary per coin stops a
-  same-day buy and sell from meeting that minimum while barely moving the position.
-- Solved daily with HiGHS (via `scipy.optimize.milp`); positions left unchanged are held as is rather than
-  re-traded as prices drift.
+| Symbol | Meaning |
+|---|---|
+| $`x_i^0`$ | current notional held |
+| $`f_i`$ | 30-day funding forecast, % a year |
+| $`m_i`$ | margin factor (capital per $1 of notional) |
+| $`p_i`$ | risk penalty: 0% (BTC/ETH), 3% (other coins), 10% (listed under 90 days) a year |
+| $`\kappa_i`$ | per-coin cap: 25% (BTC/ETH), 10% (other coins), 5% (listed under 90 days) of capital |
+| $`c`$ | round-trip trading cost (about 0.38%) |
+| $`C,\ r,\ H`$ | exchange capital, T-bill rate, horizon (30/365 years) |
+
+**Decision variables:** target notional $`x_i \ge 0`$, buys $`b_i \ge 0`$, sells $`0 \le s_i \le x_i^0`$, and binaries
+$`y_i`$ (position open), $`t_i`$ (position trades today) and $`d_i`$ (the trade is a buy).
+
+**Objective:**
+
+$$
+\max_{x,\,b,\,s,\,y,\,t,\,d}\;\; \sum_i x_i\,\big(f_i - m_i r - p_i\big)\,H \;-\; c\sum_i b_i \;-\; \tfrac{c}{2}\,\delta \sum_i s_i
+$$
+
+with $`\delta = 0`$ in the base version (the full round trip is charged on entry) and $`\delta = 1`$ in the
+turnover-controlled version (exits also pay their half).
+
+**Constraints:**
+
+$$
+\begin{aligned}
+& x_i = x_i^0 + b_i - s_i && \text{position update} \\
+& L_i\,y_i \;\le\; x_i \;\le\; U_i\,y_i && \text{size limits} \\
+& \textstyle\sum_i y_i \le 6 && \text{number of positions} \\
+& \textstyle\sum_i m_i\,x_i \le C && \text{capital} \\
+& \beta_i\,t_i \;\le\; b_i + s_i \;\le\; M_i\,t_i && \text{no-trade band} \\
+& b_i \le M_i\,d_i, \qquad s_i \le M_i\,(1 - d_i) && \text{buy or sell, not both}
+\end{aligned}
+$$
+
+where
+
+$$
+U_i = \max\!\big(\min(\kappa_i C,\; 0.01\,\mathrm{ADV}_i),\; x_i^0\big), \qquad
+L_i = \begin{cases} \min(\$10\text{k},\, x_i^0) & x_i^0 > 0 \\ \$10\text{k} & \text{otherwise} \end{cases}
+$$
+
+$$
+\beta_i = \min\!\big(\max(\$5\text{k},\; 0.1\,x_i^0),\; x_i^0\big) \text{ (turnover-controlled; 0 in the base version)}, \qquad
+M_i = \max(U_i,\, x_i^0)
+$$
+
+- $`U_i`$ never forces a sale when a held position has drifted above its cap; ADV is 7-day average daily volume.
+- The buy-or-sell binary stops a same-day buy and sell from meeting the band while barely moving the position.
+- Solved with HiGHS (via `scipy.optimize.milp`); positions the solver leaves unchanged are held as is rather
+  than re-traded as prices drift.
 
 ## Appendix E. Corrections
 
