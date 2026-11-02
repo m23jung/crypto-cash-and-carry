@@ -97,5 +97,12 @@ python -m venv .venv && .venv/bin/pip install -e ".[dev]"
 .venv/bin/python research/phase2_forecast.py     # writes reports/phase2/report.md
 .venv/bin/python research/phase3_backtest.py     # writes reports/phase3/report.md
 .venv/bin/python research/phase4_allocator.py    # writes reports/phase4/report.md (~10 min)
+.venv/bin/python research/phase4b_allocator.py   # MILP with turnover controls
+.venv/bin/python research/sensitivity.py         # margin and costs (~15 min)
+.venv/bin/python research/figures.py             # reports/figures/*.png
+.venv/bin/python research/export_pdf.py docs/paper.md   # docs/paper.pdf (needs Chrome and internet for KaTeX)
 .venv/bin/pytest
 ```
+
+Per-stage write-ups: `docs/phase1.md` to `docs/phase4b.md`, `docs/sensitivity.md`. Decision rules:
+`docs/plan.md`. Every decision and correction: `docs/decisions.md`.

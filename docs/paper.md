@@ -370,20 +370,3 @@ Errors found after first results were fixed, tested and rerun; no decision chang
 | Trade counts | Optimiser positions re-traded as prices drifted | MILP resizes fell from ~615 to ~105 a year |
 | Data end date | Final window lacked a funding print, forcing an artificial exit | Passive Sharpe 1.01 → 1.10 |
 | Unit test | The no-trade band could be met by buying and selling the same coin on one day | Fixed with a buy-or-sell binary |
-
-## Appendix F. Reproduction
-
-```bash
-python -m venv .venv && .venv/bin/pip install -e ".[dev]"
-.venv/bin/python research/build_data.py              # data (~1.5 h the first time; resumable)
-.venv/bin/python research/phase1_descriptives.py     # descriptives (funding regimes, floor, coverage)
-.venv/bin/python research/phase2_forecast.py         # investable set, forecasts
-.venv/bin/python research/phase3_backtest.py         # coin-selection rules
-.venv/bin/python research/phase4_allocator.py        # MILP
-.venv/bin/python research/phase4b_allocator.py       # MILP with turnover controls
-.venv/bin/python research/sensitivity.py             # margin and costs (also leverage, not in the paper)
-.venv/bin/python research/figures.py                 # figures
-.venv/bin/pytest                                     # tests
-```
-
-Detailed write-ups per stage: `docs/phase1.md` to `docs/phase4b.md`, `docs/sensitivity.md`. Decision rules: `docs/plan.md`. Every decision and correction: `docs/decisions.md`.
