@@ -6,6 +6,7 @@ Run:  python research/export_pdf.py docs/paper.md   (writes docs/paper.pdf)
 import subprocess
 import sys
 import tempfile
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import markdown
@@ -28,12 +29,56 @@ code, pre { font-family: "SF Mono", Menlo, monospace; font-size: 8.5pt; }
 pre { background: #f6f6f4; padding: 6pt 8pt; white-space: pre-wrap; }
 hr { border: none; border-top: 1px solid #ccc; margin: 10pt 0; }
 em { color: #333; }
+.keep { break-inside: avoid; page-break-inside: avoid; }
 """
+
+
+def _text(el) -> str:
+    return "".join(el.itertext()).strip()
+
+
+def _is_lead(el) -> bool:
+    """A heading, or a short line introducing what follows ("Results:", "... by year:")."""
+    return el.tag in ("h1", "h2", "h3") or (el.tag == "p" and el.find("img") is None and _text(el).endswith(":"))
+
+
+def keep_with_next(body: str) -> str:
+    """Wrap each heading or lead-in line with the first table, list, figure or paragraph after it, and each
+    figure with its caption, in a block Chrome will not split across pages (it ignores break-after: avoid)."""
+    root = ET.fromstring(f"<div>{body}</div>")
+    out, group = [], []
+    for el in list(root):
+        is_fig = el.tag == "p" and el.find("img") is not None
+        if group and group[-1].tag == "p" and group[-1].find("img") is not None:  # figure waits for its caption
+            if _text(el).startswith("Figure"):
+                group.append(el)
+                el = None
+            out.append(group)
+            group = []
+            if el is None:
+                continue
+        short_intro = group and el.tag == "p" and not is_fig and len(_text(el)) < 220
+        if _is_lead(el) or is_fig or short_intro:
+            group.append(el)
+            continue
+        if group:
+            group.append(el)
+            out.append(group)
+            group = []
+        else:
+            out.append([el])
+    if group:
+        out.append(group)
+    html = []
+    for g in out:
+        inner = "".join(ET.tostring(e, encoding="unicode", method="html") for e in g)
+        html.append(f'<div class="keep">{inner}</div>' if len(g) > 1 else inner)
+    return "".join(html)
 
 
 def main(src: str) -> None:
     md = Path(src).resolve()
-    body = markdown.markdown(md.read_text(), extensions=["tables", "fenced_code"])
+    body = keep_with_next(markdown.markdown(md.read_text(), extensions=["tables", "fenced_code"]))
     html = (f'<!doctype html><html><head><meta charset="utf-8"><base href="{md.parent.as_uri()}/">'
             f"<style>{CSS}</style></head><body>{body}</body></html>")
     out = md.with_suffix(".pdf")
