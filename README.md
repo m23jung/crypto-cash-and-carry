@@ -13,64 +13,50 @@ it. **They don't, after costs: the outcome is decided by capital structure, not 
 
 ![Cumulative excess return](reports/figures/1_cumulative_excess_return.png)
 
-## Key findings
+## Key findings (2022–2026, out of sample, after all costs)
 
-- **The 0.01% floor dominates.** The median coin pays *exactly* 0.01% per 8h (10.95% a year) in most
-  years; excess over T-bills ranged from +10.9% (2021) to about +1% (2026).
-- **Small-coin funding has turned negative and fat-tailed** (2025–26): squeezes on new listings
-  paid shorts as little as −13.6% in a single 8-hour window.
-- **Funding is forecastable across coins.** Out of sample (2022–26), a simple forecast ranks coins with
-  rank IC about 0.5; the top fifth earned 6–17% a year more than the average investable coin before
-  costs. That gain is about the size of a full weekly rotation's costs, so turnover control matters.
-- **The basis trade's opportunity set is shrinking:** spot coverage of top-30 perps fell from 100%
-  (2021–23) to 72–78% (2026) as new coins list as perps only.
-
-- **After 2021, carry barely beats cash.** Passive BTC+ETH carry earned +0.36% a year over T-bills
-  in 2022–26 (Sharpe 1.0), against +12.6% in 2021. Funding of 3.8% of NAV was mostly offset by the
-  T-bill interest forgone on capital tied up.
-- **Costs and capital efficiency decide the outcome.** Naive weekly rotation lost 4.5% a year to costs;
-  a cost-aware rule kept most capital idle. The largest drag in every strategy is forgone T-bill
-  interest on margin and spot capital.
-
-- **Capital efficiency beats optimisation.** Counting spot as collateral took passive BTC+ETH from
-  +0.36% to +1.71–1.94% a year. The MILP collected carry but gave much of it back in rotation costs;
-  churn controls helped (0.63% → 1.45%) but not enough to beat passive (Sharpe 1.2 vs 4.2).
-
-- **The carry is a financing trade.** Break-even capital per $1 of notional is about 1.4×; realistic
-  portfolio margin (about 1.05×) gives passive BTC+ETH about +1.4% a year over T-bills (Sharpe 2.4).
-  Leverage only helps at cost-of-cash financing, and mostly adds drawdown.
-
-Details: [Phase 1](docs/phase1.md), [Phase 2](docs/phase2.md), [Phase 3](docs/phase3.md), [Phase 4](docs/phase4.md),
-[Phase 4b](docs/phase4b.md), [sensitivity](docs/sensitivity.md).
+- **Carry over cash collapsed after 2021.** Passive BTC+ETH earned +12.6% over T-bills in 2021, then
+  +0.36% a year in 2022–26 (Sharpe 1.10): the exchange's funding floor (10.95% a year) stayed fixed while
+  T-bills rose from 0% to 5%.
+- **Funding is forecastable, but the edge is the size of the cost.** A pooled regression ranks coins well
+  (rank IC about 0.5); the top fifth earns 9.7% a year more than the average coin, but rotating weekly
+  into it costs 10.4%.
+- **No active strategy beat passive** at the same margin on a risk-adjusted basis, including a daily MILP
+  optimiser (+0.63%, Sharpe 0.55; +1.45%, Sharpe 1.21 with turnover controls). None survives the
+  correction for the 23 variants tried.
+- **Capital structure decides the outcome.** The trade breaks even at about 1.4× capital per $1 of
+  notional; under portfolio margin (1.05×), passive BTC+ETH earned **+1.94% a year over T-bills (Sharpe
+  4.18)**. Returns are concentrated in high leverage-demand regimes.
 
 ## Documents
 
 | | |
 |---|---|
-| [docs/paper.md](docs/paper.md) | **The paper**: question, data, protocol, results, limitations |
-| [docs/summary.md](docs/summary.md) | Two-page summary of the paper |
-| [docs/plan.md](docs/plan.md) | Research questions, hypothesis, background, data, phases, go/no-go rule, pivot plan |
-| [docs/decisions.md](docs/decisions.md) | Dated log of every analysis decision |
-| [docs/phase1.md](docs/phase1.md) | Phase 1 findings and interpretation |
-| [docs/phase2.md](docs/phase2.md) | Phase 2 findings and interpretation |
-| [docs/phase3.md](docs/phase3.md) | Phase 3 findings and interpretation |
-| [docs/phase4.md](docs/phase4.md) | Phase 4 findings and interpretation |
-| [docs/phase4b.md](docs/phase4b.md) | Phase 4b: churn controls and realistic margin |
+| **Paper** | |
+| [docs/paper.pdf](docs/paper.pdf) ([markdown](docs/paper.md)) | Full paper |
+| [docs/summary.pdf](docs/summary.pdf) ([markdown](docs/summary.md)) | Two-page summary |
+| **Working notes** | |
+| [docs/plan.md](docs/plan.md) | Research questions and every pre-registered spec and decision rule |
+| [docs/decisions.md](docs/decisions.md) | Dated log of every analysis decision and correction |
+| [docs/phase1.md](docs/phase1.md) … [docs/phase4b.md](docs/phase4b.md) | Findings per stage |
 | [docs/sensitivity.md](docs/sensitivity.md) | Margin, leverage and transaction-cost sensitivity |
-| [reports/](reports/) | Generated tables (one folder per phase) |
+| [reports/](reports/) | Generated tables, one folder per stage, and figures |
+| **Not in the results** | |
+| [docs/extension_a.md](docs/extension_a.md) | Cross-venue funding gaps incl. on-chain venues (dropped when the project narrowed to single-venue carry) |
+| [docs/extension_b.md](docs/extension_b.md) | Stock and commodity perps as synthetic financing (exploratory) |
 
 ## Layout
 
 ```
 funding/        importable library
-  sources.py    Binance / Bybit / FRED downloaders
+  sources.py    Binance / Bybit / FRED downloaders (plus Hyperliquid, dYdX, Yahoo for the extensions)
   store.py      SQLite cache
   panels.py     point-in-time universe, 8-hour funding, prices and basis
-  dataset.py    venue panels and investable set shared by Phases 2–4
+  dataset.py    venue panels and investable set shared by the stages
   forecast.py   funding features, models M0–M3, leak-free walk-forward
   backtest.py   8-hour spot/perp carry engine with P&L attribution
   metrics.py    Sharpe, drawdown, probabilistic and deflated Sharpe, paired bootstrap
-  milp.py       daily MILP allocator (HiGHS via scipy.optimize.milp)
+  milp.py       daily single-venue MILP allocator (HiGHS via scipy.optimize.milp)
 research/       one runnable script per step
   build_data.py
   phase1_descriptives.py
@@ -79,12 +65,14 @@ research/       one runnable script per step
   phase4_allocator.py
   phase4b_allocator.py
   sensitivity.py
-  build_extensions.py   data for the extensions
-  extension_a_onchain.py   (cross-venue; not in the results)
-  extension_b_tradfi.py   (exploratory, not in the results)
   figures.py
-reports/        generated output, by phase
-docs/           plan, decisions, phase write-ups
+  export_pdf.py          markdown to PDF (headless Chrome, KaTeX)
+  build_extensions.py    data for the extensions          ┐
+  cross_venue_pnl.py     cross-venue trade with price leg │ not in the results
+  extension_a_onchain.py on-chain venue comparison        │
+  extension_b_tradfi.py  stock and commodity perps        ┘
+reports/        generated tables by stage, and figures
+docs/           paper, summary, plan, decisions, stage write-ups
 tests/
 data/           local cache (gitignored)
 ```
@@ -94,7 +82,7 @@ data/           local cache (gitignored)
 ```bash
 python -m venv .venv && .venv/bin/pip install -e ".[dev]"
 .venv/bin/python research/build_data.py          # ~1.5 h the first time (rate limits); resumable
-.venv/bin/python research/phase1_descriptives.py # writes reports/phase1/report.md
+.venv/bin/python research/phase1_descriptives.py # writes reports/phase1/report.md (descriptives)
 .venv/bin/python research/phase2_forecast.py     # writes reports/phase2/report.md
 .venv/bin/python research/phase3_backtest.py     # writes reports/phase3/report.md
 .venv/bin/python research/phase4_allocator.py    # writes reports/phase4/report.md (~10 min)
@@ -104,6 +92,3 @@ python -m venv .venv && .venv/bin/pip install -e ".[dev]"
 .venv/bin/python research/export_pdf.py docs/paper.md   # docs/paper.pdf (needs Chrome and internet for KaTeX)
 .venv/bin/pytest
 ```
-
-Per-stage write-ups: `docs/phase1.md` to `docs/phase4b.md`, `docs/sensitivity.md`. Decision rules:
-`docs/plan.md`. Every decision and correction: `docs/decisions.md`.

@@ -1,5 +1,8 @@
 # Phase 1: data and descriptives (completed 2026-10-29)
 
+> The cross-venue arbitrage test below was the original thesis. Its NO-GO led to the single-venue carry
+> study in the paper; the test itself is not in the paper's results.
+
 Generated tables: [`reports/phase1/report.md`](../reports/phase1/report.md).
 Code: [`research/phase1_descriptives.py`](../research/phase1_descriptives.py).
 Go/no-go rule: [plan](plan.md#phase-1-gono-go-rule-fixed-2026-10-28-before-any-data-was-pulled).
