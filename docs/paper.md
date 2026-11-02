@@ -22,12 +22,12 @@ and every variant is counted when judging statistical significance.
 
 ![Cumulative excess return](../reports/figures/1_cumulative_excess_return.png)
 
-*Figure 1. Cumulative return over T-bills, $1M across both exchanges, after all costs (2022–2026). Labelled
-dips are short-perp liquidations in price spikes on small coins (Section 3.2).*
+*Figure 1. Cumulative return over T-bills, $1M split across both exchanges, after all costs (2022–2026).
+Numbered dips are short-perp liquidations in price spikes on small coins (Section 4).*
 
 ---
 
-## 1. How the trade works
+## 1. Trade Mechanics
 
 **Perpetual futures** never expire. Instead, longs and shorts exchange a **funding payment** every 1–8 hours
 that pushes the perp back towards the spot price:
@@ -64,132 +64,122 @@ All results below are in excess of the 3-month T-bill, net of all costs.
   using only data available at the time: **274 coins**, including coins later delisted.
 - **Investable:** in that month's universe, with a spot market on the same exchange and a perp–spot gap
   within ±20%. About **25 coins per exchange** from 2022.
-- Stock, ETF and commodity perps are excluded. Full construction rules: Appendix A.
+- **Periods:** 2021 trains the forecasts; all backtests run 2022–2026 out of sample.
+- Stock, ETF and commodity perps are excluded (Appendix A).
 
-## 3. What was tried
+## 3. Funding Forecasts
 
-### 3.1 Forecasting funding
-
-**Setup** (details in Appendix B):
+**Setup** (Appendix B):
 
 - Target: each coin's average funding over the **next 7 days**.
 - Four models: a constant (the 0.01% floor), last value, an exponentially weighted average (EWMA) and a
   pooled linear regression on recent funding averages, the perp–spot gap and time spent at the floor.
-- Walk-forward: trained on 2021, tested out of sample from 2022, refitted monthly using only past data.
+- Walk-forward on an expanding window: refitted monthly on all data up to then, tested out of sample
+  from 2022.
 
-**Results** (out of sample):
+**Results** (out of sample, 2022–2026):
 
 | | Floor | Last value | EWMA | Regression |
 |---|---|---|---|---|
-| Forecast error, mean absolute (bp per 8h), range over 2022–26 | 1.06–2.17 | 0.96–2.00 | 0.82–1.68 | **0.72–1.39** |
+| Forecast error, mean absolute (bp per 8h), range over years | 1.06–2.17 | 0.96–2.00 | 0.82–1.68 | **0.72–1.39** |
 | Ranking of coins: rank IC, range over years | — | 0.37–0.60 | **0.49–0.70** | 0.47–0.68 |
 | Top 20% by forecast vs average coin (% a year, before costs) | — | 4.6–10.5 | 6.5–15.2 | 6.3–16.8 |
 
-- Funding is clearly forecastable: a rank IC around 0.5 is very high (Appendix B explains the measure).
-- The regression wins on error in 4 of 5 years and is used downstream; the EWMA ranks coins slightly better.
-- **The catch:** rotating weekly into the top 20% costs about 15.6% a year (0.38% round trip × 52), about
-  the same as the extra funding it identifies.
+![Funding forecasts](../reports/figures/8_forecasts.png)
 
-### 3.2 Rules for choosing coins
+*Figure 2. Left: forecast error by model, 2022–2026. Middle: coins sorted each window into fifths by the
+regression forecast; bars show the funding they actually earned over the next 7 days, dots the forecast.
+Right: rotating weekly into the top fifth, against the average coin.*
 
-**Strategies** ($1M split across both exchanges, margin factor 1.5, 2022–2026):
+- **The regression is the most accurate** (lowest error in 4 of 5 years) and is used downstream; the EWMA
+  ranks coins slightly better.
+- **Funding is clearly forecastable.** Realised funding rises steadily from the lowest forecast fifth
+  (−24% a year) to the highest (+10%), and the forecasts sit close to the outcomes. A rank IC around 0.5
+  is very high (Appendix B).
+- **The catch is cost.** The top fifth earns about 9.7% a year more than the average coin, but about half
+  of it changes each week, and replacing it at 0.38% per round trip costs about 10.4% a year. Net of
+  rotation, the edge is gone.
+
+## 4. Strategies
+
+All four run on each exchange separately, $500k each, at margin factor 1.5 unless stated (2022–2026).
 
 | | Signal | Enter | Exit | Decides |
 |---|---|---|---|---|
-| **Passive** | none | hold BTC and ETH on both exchanges, always | only if the coin stops being investable | n/a |
+| **Passive** | none | hold BTC and ETH, always | only if the coin stops being investable | n/a |
 | **Naive top 5** | 7-day forecast | the 5 coins with the highest forecast | drops out of the top 5 | every 7 days |
 | **Cost-aware top 5** | 7-day forecast | forecast beats T-bills plus the round-trip cost spread over 7 days | forecast falls below T-bills | every 8 hours |
-| **MILP** (Section 3.3) | 30-day forecast | chosen by the optimiser, net of trading costs | chosen by the optimiser | daily |
+| **MILP** | 30-day forecast | chosen by the optimiser, net of trading costs | chosen by the optimiser | daily |
 
-- **Forecasts:** the regression is refitted monthly, but each coin's forecast is recomputed every 8 hours
-  from the latest funding.
-- **Execution:** a decision made at one close is executed at the next 8-hour close, so no trade uses
-  information it could not have had.
-- **Forced exits:** every strategy closes a position on liquidation or when the coin leaves the universe.
-- **Sizing:** the three rules give each position a fixed slot (equity ÷ 1.5 ÷ number of slots) and do not
-  resize while held. The cost-aware rule's lower exit bar (T-bills, not T-bills plus cost) keeps it from
-  trading in and out.
-
-**Results:**
-
-| | Excess return a year | Sharpe | Max drawdown | Turnover (× capital a year) |
-|---|---|---|---|---|
-| **Passive BTC+ETH** | **+0.36%** | **1.10** | −2.5% | 0.1 |
-| Naive top 5 | −4.31% | −1.68 | −19.0% | 31.3 |
-| Cost-aware top 5 | +1.46% | 0.83 | −3.5% | 3.0 |
-| Cost-aware top 5, EWMA forecast | +2.56% | 1.35 | −2.3% | 2.4 |
-
-None of the active rules beats passive on a risk-adjusted basis (the cost-aware rule's Sharpe is lower,
-P(not better) = 0.51), and none survives the correction for the number of variants tried (Appendix B).
-
-**Why:**
-
-- **Naive rotation is eaten by costs:** the most funding collected (5.8% of capital a year) but 6.0% paid in
-  costs and 0.6% in liquidation penalties.
-- **The cost-aware rule mostly sits in cash:** spreading a 0.38% round trip over only 7 days requires
-  forecast funding of about 24% a year to enter, so it held 1.7 coins on average out of 10 slots.
-- **Small coins bring liquidations.** Every numbered dip in Figure 1 is a short perp liquidated in a price
-  spike on a small coin: PEOPLE (March 2024), ADA (March 2025, when it jumped on the US "crypto strategic
-  reserve" announcement), BNX (March 2025, −2.1% in a day, mostly reversed the next day) and BSB (June 2026).
-  Each costs a 2% penalty plus a loss on the leftover spot, which is sold at the next 8-hour close after
-  the spike has partly reversed. BTC and ETH were never liquidated.
-
-### 3.3 A daily optimiser (MILP)
-
-**How it is used.** Once a day, on each exchange separately, a mixed-integer program (solved with HiGHS)
-decides which coins to hold and how much of each. Trades execute at the next 8-hour close. It re-solves
-daily but trades only when the extra expected carry beats the cost.
-
-- **Maximises:** expected funding over 30 days, minus the T-bill on capital used, minus trading costs
-  (charged in full when a position opens), minus a risk penalty for small and newly listed coins.
-- **Constraints:** the exchange's capital; per-coin caps (25% of capital for BTC/ETH, 10% other coins, 5%
-  coins listed under 90 days); at most 1% of a coin's daily volume; $10k minimum position; at most 6
-  positions.
-- **Forecast:** the regression, refitted for a 30-day target (same inputs as the 7-day one). Spreading the
-  0.38% round trip over 30 rather than 7 days lowers the cost hurdle from about 20% to 4.6% a year. A
-  7-day version traded a third as much and did slightly better (+0.84%, Sharpe 0.74).
-- Full formulation: Appendix D.
+- **Passive** is the benchmark: the basis trade on the two largest coins, no selection.
+- **Naive top 5** tests the forecast with no regard for cost.
+- **Cost-aware top 5** enters only when the forecast clears the T-bill plus trading cost, and exits only
+  when it falls below the T-bill. The gap between the two bars stops it trading in and out.
+- **MILP** (mixed-integer program, solved with HiGHS) decides daily which coins to hold and how much of
+  each. It maximises expected funding over 30 days, minus the T-bill on capital used, trading costs and a
+  risk penalty for small and new coins, subject to the exchange's capital, per-coin caps (25% BTC/ETH,
+  10% other coins, 5% coins listed under 90 days), 1% of daily volume, a $10k minimum and 6 positions
+  (Appendix D). The 30-day horizon spreads the round trip over a typical holding period, lowering the
+  cost hurdle from about 20% to 4.6% a year.
+- **Common rules:** forecasts are recomputed every 8 hours (the regression is refitted monthly); decisions
+  are executed at the next 8-hour close; positions close on liquidation or when the coin leaves the
+  universe.
 
 **Results:**
 
-| | Margin | Excess return a year | Sharpe | Turnover | Costs a year |
-|---|---|---|---|---|---|
-| Passive BTC+ETH | 1.50 | +0.36% | 1.10 | 0.1 | 0.03% |
-| **MILP** | 1.50 | +0.63% | 0.55 | 5.2 | 1.05% |
-| MILP with turnover controls* | 1.05 / 1.30 | +1.45% | 1.21 | 4.2 | 0.84% |
-| **Passive BTC+ETH, portfolio margin** | **1.05** | **+1.94%** | **4.18** | 0.2 | 0.04% |
+| | Margin | Excess return a year | Sharpe | Max drawdown | Turnover (× capital a year) | Costs a year |
+|---|---|---|---|---|---|---|
+| **Passive BTC+ETH** | 1.50 | +0.36% | 1.10 | −2.5% | 0.1 | 0.03% |
+| Naive top 5 | 1.50 | −4.31% | −1.68 | −19.0% | 31.3 | 5.95% |
+| Cost-aware top 5 | 1.50 | +1.46% | 0.83 | −3.5% | 3.0 | 0.59% |
+| Cost-aware top 5, EWMA forecast | 1.50 | +2.56% | 1.35 | −2.3% | 2.4 | 0.44% |
+| MILP | 1.50 | +0.63% | 0.55 | −1.7% | 5.2 | 1.05% |
+| MILP with turnover controls* | 1.05 / 1.30 | +1.45% | 1.21 | −2.6% | 4.2 | 0.84% |
+| **Passive BTC+ETH, portfolio margin** | **1.05** | **+1.94%** | **4.18** | −1.2% | 0.2 | 0.04% |
 
 \* *Exit costs charged in the objective, a no-trade band (trades smaller than $5k or 10% skipped), and
 realistic portfolio margin (1.05 for BTC/ETH, 1.30 for other coins).*
 
-**Why it does not beat passive:**
+No active strategy beats passive at the same margin on a risk-adjusted basis (cost-aware rule
+P(not better) = 0.51; MILP 0.66; MILP with turnover controls 0.99), and none survives the correction
+for the number of variants tried (Appendix B).
 
-- It does what it was designed to: fully invested during the high-funding periods of 2024, in T-bills
-  otherwise, with fewer liquidations than the coin-picking rules (Figure 2).
-- But it **gives much of the carry back in trading:** about 90 opens and closes a year as forecasts
-  change (Figure 3). Turnover controls cut that to about 65 and, with portfolio margin, more than doubled
+**Why none of them beats passive:**
+
+- **Naive rotation is eaten by costs:** the most funding collected (5.8% of capital a year) but 6.0% paid in
+  costs and 0.6% in liquidation penalties.
+- **The cost-aware rule mostly sits in cash:** a 0.38% round trip spread over 7 days requires forecast
+  funding of about 24% a year to enter, so it held 1.7 coins on average out of 10 slots. Its higher return
+  comes with more volatility, so its Sharpe is lower.
+- **The MILP gives the carry back in trading.** It is fully invested in the high-funding periods of 2022
+  and 2024 and in T-bills otherwise (Figure 3), but makes about 90 opens and closes a year as forecasts
+  change (Figure 4). Turnover controls cut that to about 65 and, with portfolio margin, more than doubled
   the return, still well short of passive under the same margin.
-- The extra funding in small coins comes with **higher margin factors, liquidations and basis losses**.
-  Passive BTC+ETH trades almost never and ties up the least capital (Figure 4).
+- **Small coins bring liquidations and basis losses.** Every numbered dip in Figure 1 is a short perp
+  liquidated in a price spike on a small coin: PEOPLE (March 2024), ADA (March 2025, when it jumped on the
+  US "crypto strategic reserve" announcement), BNX (March 2025, −2.1% in a day, mostly reversed the next
+  day) and BSB (June 2026). Each costs a 2% penalty plus a loss on the leftover spot, sold at the next
+  8-hour close after the spike has partly reversed. BTC and ETH were never liquidated.
+- **Capital cost is the largest drag in every strategy** (Figure 5). Passive BTC+ETH trades almost never
+  and, under portfolio margin, ties up the least capital.
 
 ![MILP positions](../reports/figures/4_milp_positions.png)
 
-*Figure 2. MILP capital deployed and weekly positions by coin. Fully invested in 2022 and the 2024 rallies;
-mostly in T-bills otherwise.*
+*Figure 3. MILP capital deployed and weekly positions by coin (both exchanges).*
 
 ![MILP trading](../reports/figures/5_milp_trading.png)
 
-*Figure 3. MILP trading by month: opens and closes dominate, concentrated in the high-funding periods.*
+*Figure 4. MILP trading by month: opens and closes dominate, concentrated in the high-funding periods.*
 
 ![Where the excess return comes from](../reports/figures/2_pnl_attribution.png)
 
-*Figure 4. Annual P&L by source. Funding adds (blue); the largest drag in every strategy is "cash − T-bill",
-the interest given up on capital tied up in positions.*
+*Figure 5. Annual P&L by source. Blue adds, red subtracts, gray is the total. "Cash − T-bill" is the
+interest given up on capital tied up in positions.*
 
-## 4. What is left: single-exchange basis carry
+## 5. Carry Regimes
 
-With selection ruled out, the return is the carry itself, and how much of it survived
-2021 depends on the regime:
+With selection ruled out, the return is the carry itself, and how much of it survived 2021 depends on the
+regime:
 
 | Year | Context | BTC funding (% a year) | Median coin funding | T-bill | Funding prints negative |
 |---|---|---|---|---|---|
@@ -202,8 +192,8 @@ With selection ruled out, the return is the carry itself, and how much of it sur
 
 ![Funding vs cost of capital](../reports/figures/3_funding_vs_capital_cost.png)
 
-*Figure 5. BTC funding (30-day average) against the cost of capital. The trade earns only when funding is
-above the capital-cost line: continuously in 2021, in bursts since.*
+*Figure 6. BTC funding (30-day average) against the cost of capital, from the start of the data. The
+trade earns only when funding is above the capital-cost line: continuously in 2021, in bursts since.*
 
 **Why carry compressed:**
 
@@ -217,21 +207,14 @@ above the capital-cost line: continuously in 2021, in bursts since.*
 - **Fewer coins can be hedged:** new coins increasingly list as perps only, so spot is available for only
   72–78% of the top 30 by 2026, down from 100%.
 
-**Passive BTC+ETH carry, 2022–2026:**
+In 2021 alone, before the backtest period, passive BTC+ETH earned +12.6% over T-bills; it is not counted
+in any result above, since the forecasts needed that year to train.
 
-| Margin factor | Excess return a year | Sharpe |
-|---|---|---|
-| 1.50 (separate accounts) | +0.36% | 1.10 |
-| 1.10 | +1.71% | 3.85 |
-| 1.05 (portfolio margin) | +1.94% | 4.18 |
-
-In 2021 alone, before any of the tests above, the same position earned +12.6% over T-bills.
-
-## 5. Sensitivity to margin, leverage and costs
+## 6. Margin and Cost Sensitivity
 
 ![Margin sensitivity](../reports/figures/7_margin_sensitivity.png)
 
-*Figure 6. Passive BTC+ETH excess return against capital tied up per $1 of notional (constant exposure,
+*Figure 7. Passive BTC+ETH excess return against capital tied up per $1 of notional (constant exposure,
 weekly rebalance). Break-even is about 1.4.*
 
 **Margin is the main lever.**
@@ -240,18 +223,8 @@ weekly rebalance). Break-even is about 1.4.*
 - Break-even ≈ funding ÷ (T-bill + costs) ≈ 6.4% ÷ 4.6% ≈ **1.4**.
 - Exchange documentation puts realistic BTC/ETH portfolio margin at 1.0–1.05 (95% collateral ratio, 0.4%
   maintenance margin).
-
-**Leverage helps little.** Borrowing to hold more notional (margin factor 1.05):
-
-| Leverage | 1× | 1.5× | 2× | 3× |
-|---|---|---|---|---|
-| Borrow at T-bill + 1%: excess / max drawdown | +1.41% / −2.1% | +1.65% / −3.4% | +1.86% / −5.2% | +2.28% / −8.5% |
-| Borrow at 11% (exchange loan): excess / max drawdown | +1.28% / −2.2% | −1.31% / −8.2% | −4.05% / −17.8% | −9.55% / −36.8% |
-
-- Leverage pays only if funding beats the borrowing rate plus costs. At cash-like rates each extra 1× adds
-  about 0.4% a year but roughly doubles the drawdown; at exchange loan rates it is destructive.
-- Better than leverage: **earn interest on the capital already tied up** (yield-bearing collateral), which
-  attacks the largest cost without adding risk.
+- Earning interest on the capital already tied up (yield-bearing collateral) would attack the largest cost
+  directly.
 
 **Costs matter most for active strategies.** All fees and slippage multiplied by k (k = 1 is the base case,
 about 0.38% per round trip):
@@ -263,7 +236,7 @@ about 0.38% per round trip):
 
 Even with maker or VIP fees, the MILP stays below passive under the same margin.
 
-## 6. Conclusion
+## 7. Conclusion
 
 - The carry that survived 2021 is a **financing spread**: funding near an exchange-set floor, earned against
   the cost of cash.
@@ -282,7 +255,7 @@ Even with maker or VIP fees, the MILP stays below passive under the same margin.
 
 ---
 
-## Appendix A. Data and universe
+## Appendix A. Data and Universe
 
 - **Sources:** Binance USD-M API and bulk archive (data.binance.vision), used for delisted symbols the live
   API no longer serves; Bybit v5 API (spot only from July 2021); FRED for the T-bill, lagged one day.
@@ -295,7 +268,7 @@ Even with maker or VIP fees, the MILP stays below passive under the same margin.
 - **Investable:** spot market on the same exchange, and a perp–spot gap within ±20% (larger gaps are
   collapses or broken pairs, e.g. LUNA in May 2022). Under 0.5% of windows are missing.
 
-## Appendix B. Research protocol
+## Appendix B. Research Protocol
 
 **Pre-registration.** Each test's design and pass/fail rule was written down before it ran:
 
@@ -329,7 +302,7 @@ per exchange after these results; all earlier runs still count as trials.
 - No look-ahead: a training row is used only if its whole target window ends before the refit date. A test
   scrambles all data after a cut-off and checks that no earlier forecast changes.
 
-## Appendix C. Backtest engine and assumptions
+## Appendix C. Backtest Engine
 
 - **Timing:** decide at an 8-hour close using data up to then; trade at the next close.
 - **P&L per window:** funding + basis change + cash interest − costs − liquidation penalties. The components
@@ -344,7 +317,7 @@ per exchange after these results; all earlier runs still count as trials.
   (delisted) are closed at their last prices.
 - **Liquidity:** positions capped at 1% of 7-day average daily volume.
 
-## Appendix D. MILP formulation
+## Appendix D. MILP Formulation
 
 Solved separately for each exchange, with capital C. For each candidate coin, with current notional x⁰ and
 forecast annual funding f:
@@ -378,7 +351,7 @@ Errors found after first results were fixed, tested and rerun; no decision chang
 | Data end date | Final window lacked a funding print, forcing an artificial exit | Passive Sharpe 1.01 → 1.10 |
 | Unit test | The no-trade band could be met by buying and selling the same coin on one day | Fixed with a buy-or-sell binary |
 
-## Appendix F. Reproducing the results
+## Appendix F. Reproduction
 
 ```bash
 python -m venv .venv && .venv/bin/pip install -e ".[dev]"
@@ -388,7 +361,7 @@ python -m venv .venv && .venv/bin/pip install -e ".[dev]"
 .venv/bin/python research/phase3_backtest.py         # coin-selection rules
 .venv/bin/python research/phase4_allocator.py        # MILP
 .venv/bin/python research/phase4b_allocator.py       # MILP with turnover controls
-.venv/bin/python research/sensitivity.py             # margin, leverage, costs
+.venv/bin/python research/sensitivity.py             # margin and costs (also leverage, not in the paper)
 .venv/bin/python research/figures.py                 # figures
 .venv/bin/pytest                                     # tests
 ```

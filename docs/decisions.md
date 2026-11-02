@@ -2,6 +2,13 @@
 
 Newest first. Every analysis choice that could change a result is recorded here with its date.
 
+- **2026-11-01** Paper restyled and restructured (no result changed): one font (Charter) and one blue/gray
+  palette across text and charts; shorter chart titles; coin-selection rules and the MILP merged into one
+  Strategies section with a single results table; leverage table removed from the paper (kept in
+  `docs/sensitivity.md`); new forecast figure (`8_forecasts.png`). The weekly rotation cost is now measured
+  from actual top-quintile turnover (about half the basket a week: 10.4% a year vs a 9.7% edge), replacing
+  an earlier 15.6% estimate that assumed a 30 bp round trip.
+
 - **2026-10-31** Narrowed the project to single-venue carry. Cross-exchange arbitrage (Phase 1 test and its
   sensitivity) and Extension A removed from the paper and README; code and reports kept. The MILP now runs
   one book per venue ($500k each, 6 positions max) instead of jointly allocating and transferring capital

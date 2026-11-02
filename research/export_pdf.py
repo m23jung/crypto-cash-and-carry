@@ -11,7 +11,7 @@ from pathlib import Path
 import markdown
 
 CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-CSS = """
+CSS = """  /* body font Charter, also used by the charts (research/figures.py) */
 @page { size: Letter; margin: 0.9in 0.85in; }
 body { font-family: "Charter", "Georgia", serif; font-size: 10.5pt; line-height: 1.45; color: #111; }
 h1 { font-size: 19pt; line-height: 1.2; margin: 0 0 4pt; }
