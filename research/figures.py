@@ -12,6 +12,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
+import matplotlib.ticker  # noqa: E402
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 from matplotlib import font_manager  # noqa: E402
@@ -226,19 +227,34 @@ def main():
     lines = [("BTC funding, 30-day average", daily.rolling(30).mean(), BLUE, "-"),
              ("Capital cost at margin 1.5", t_ann * 1.5, NAVY, "-"),
              ("Capital cost at margin 1.1", t_ann * 1.1, NAVY, (0, (4, 2)))]
-    fig, ax = plt.subplots(figsize=(10, 5))
-    ax.axvspan(daily.index[0], pd.Timestamp(START, tz="UTC"), color=GRID, alpha=0.6, lw=0)
+    spot = panels["binance"]["spot"][["BTC", "ETH"]]
+    spot = spot.groupby(spot.index.floor("D")).last().reindex(daily.index)
+    spot = spot / spot.apply(lambda c: c.dropna().iloc[0]) * 100
+    fig, (a1, ax) = plt.subplots(2, 1, figsize=(10, 7), sharex=True, height_ratios=[1, 1.6])
+    for a_ in (a1, ax):
+        a_.axvspan(daily.index[0], pd.Timestamp(START, tz="UTC"), color=GRID, alpha=0.6, lw=0)
+    for c, color in (("BTC", NAVY), ("ETH", LIGHT)):
+        a1.plot(spot.index, spot[c], color=color, label=c)
+        a1.annotate(f"{c}  {spot[c].dropna().iloc[-1]:.0f}", (spot[c].dropna().index[-1], spot[c].dropna().iloc[-1]),
+                    xytext=(6, 0), textcoords="offset points", va="center", fontsize=9, annotation_clip=False)
+    a1.set_yscale("log")
+    a1.yaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(lambda v, _: f"{v:.0f}"))
+    a1.yaxis.set_minor_formatter(matplotlib.ticker.NullFormatter())
+    a1.set_yticks([50, 100, 200, 400, 800])
+    a1.margins(x=0.01)
+    a1.set_ylabel("price, Jan 2021 = 100 (log)")
+    a1.set_title("BTC and ETH price vs BTC funding and cost of capital")
     ax.text(daily.index[120], 0.97, "forecast training\n(before backtests)", transform=ax.get_xaxis_transform(),
             va="top", fontsize=8.5, color=INK2)
-    for n, s, c, ls in lines:
-        ax.plot(s.index, s, color=c, ls=ls, label=n)
+    for n, s_, c, ls in lines:
+        ax.plot(s_.index, s_, color=c, ls=ls, label=n)
     ax.axhline(10.95, color=MUTED, lw=1, ls=(0, (1, 2)))
     ax.text(1.0, 10.95, " floor 10.95%", transform=ax.get_yaxis_transform(), va="center", fontsize=9, color=INK2)
     ax.axhline(0, color=AXIS, lw=1)
-    ax.set_title("BTC funding vs cost of capital")
     ax.set_ylabel("% a year")
     ax.margins(x=0.01)
     ax.legend(loc="upper right")
+    fig.tight_layout(h_pad=1.5)
     save(fig, "3_funding_vs_capital_cost.png")
 
 

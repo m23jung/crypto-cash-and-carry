@@ -184,8 +184,10 @@ regime:
 
 ![Funding vs cost of capital](../reports/figures/3_funding_vs_capital_cost.png)
 
-*Figure 4. BTC funding (30-day average) against the cost of capital, from the start of the data. The
-trade earns only when funding is above the capital-cost line: continuously in 2021, in bursts since.*
+*Figure 4. Top: BTC and ETH spot prices (January 2021 = 100, log scale). Bottom: BTC funding (30-day
+average) against the cost of capital. Funding spikes with rallies (2021, early and late 2024), when
+leveraged buyers pay up; the trade earns only when funding is above the capital-cost line: continuously
+in 2021, in bursts since.*
 
 **Why carry compressed:**
 
