@@ -152,28 +152,20 @@ for the number of variants tried (Appendix B).
   funding of about 24% a year to enter, so it held 1.7 coins on average out of 10 slots. Its higher return
   comes with more volatility, so its Sharpe is lower.
 - **The MILP gives the carry back in trading.** It is fully invested in the high-funding periods of 2022
-  and 2024 and in T-bills otherwise (Figure 3), but makes about 90 opens and closes a year as forecasts
-  change (Figure 4). Turnover controls cut that to about 65 and, with portfolio margin, more than doubled
+  and 2024 and in T-bills otherwise, but makes about 90 opens and closes a year as forecasts change.
+  Turnover controls cut that to about 65 and, with portfolio margin, more than doubled
   the return, still well short of passive under the same margin.
 - **Small coins bring liquidations and basis losses.** Every numbered dip in Figure 1 is a short perp
   liquidated in a price spike on a small coin: PEOPLE (March 2024), ADA (March 2025, when it jumped on the
   US "crypto strategic reserve" announcement), BNX (March 2025, −2.1% in a day, mostly reversed the next
   day) and BSB (June 2026). Each costs a 2% penalty plus a loss on the leftover spot, sold at the next
   8-hour close after the spike has partly reversed. BTC and ETH were never liquidated.
-- **Capital cost is the largest drag in every strategy** (Figure 5). Passive BTC+ETH trades almost never
+- **Capital cost is the largest drag in every strategy** (Figure 3). Passive BTC+ETH trades almost never
   and, under portfolio margin, ties up the least capital.
-
-![MILP positions](../reports/figures/4_milp_positions.png)
-
-*Figure 3. MILP capital deployed and weekly positions by coin (both exchanges).*
-
-![MILP trading](../reports/figures/5_milp_trading.png)
-
-*Figure 4. MILP trading by month: opens and closes dominate, concentrated in the high-funding periods.*
 
 ![Where the excess return comes from](../reports/figures/2_pnl_attribution.png)
 
-*Figure 5. Annual P&L by source. Blue adds, red subtracts, gray is the total. "Cash − T-bill" is the
+*Figure 3. Annual P&L by source. Blue adds, red subtracts, gray is the total. "Cash − T-bill" is the
 interest given up on capital tied up in positions.*
 
 ## 5. Carry Regimes
@@ -192,7 +184,7 @@ regime:
 
 ![Funding vs cost of capital](../reports/figures/3_funding_vs_capital_cost.png)
 
-*Figure 6. BTC funding (30-day average) against the cost of capital, from the start of the data. The
+*Figure 4. BTC funding (30-day average) against the cost of capital, from the start of the data. The
 trade earns only when funding is above the capital-cost line: continuously in 2021, in bursts since.*
 
 **Why carry compressed:**
@@ -214,7 +206,7 @@ in any result above, since the forecasts needed that year to train.
 
 ![Margin sensitivity](../reports/figures/7_margin_sensitivity.png)
 
-*Figure 7. Passive BTC+ETH excess return against capital tied up per $1 of notional (constant exposure,
+*Figure 5. Passive BTC+ETH excess return against capital tied up per $1 of notional (constant exposure,
 weekly rebalance). Break-even is about 1.4.*
 
 **Margin is the main lever.**

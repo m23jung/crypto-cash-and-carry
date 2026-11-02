@@ -1,4 +1,4 @@
-"""Paper figures: returns, forecasts, P&L sources, cost of capital, MILP positions and trading, margin.
+"""Paper figures: returns, forecasts, P&L sources, cost of capital and margin.
 
 Run:  python research/figures.py   (writes reports/figures/*.png; runs the MILP once, ~3 min)
 """
@@ -157,7 +157,7 @@ def main():
     ledgers["Passive, cross-margin"] = sum(b[cols] for b in books).assign(tbill=books[0]["tbill"])
     print("running MILP")
     milp = milp_backtest(panels, fc30["M3_regression"], tbill, Params())
-    trades["MILP"], positions = milp.attrs["trades"], milp.attrs["positions"]
+    trades["MILP"] = milp.attrs["trades"]
     milp.attrs = {}  # keep logs out of pandas metadata before combining frames
     ledgers["MILP"] = milp
     order = ["Passive, cross-margin", "Passive BTC+ETH", "Cost-aware top 5", "MILP"]
@@ -228,74 +228,18 @@ def main():
              ("Capital cost at margin 1.1", t_ann * 1.1, NAVY, (0, (4, 2)))]
     fig, ax = plt.subplots(figsize=(10, 5))
     ax.axvspan(daily.index[0], pd.Timestamp(START, tz="UTC"), color=GRID, alpha=0.6, lw=0)
-    ax.text(daily.index[10], 0.22, "forecast training\n(before backtests)", transform=ax.get_xaxis_transform(),
-            va="bottom", fontsize=8.5, color=INK2)
+    ax.text(daily.index[120], 0.97, "forecast training\n(before backtests)", transform=ax.get_xaxis_transform(),
+            va="top", fontsize=8.5, color=INK2)
     for n, s, c, ls in lines:
         ax.plot(s.index, s, color=c, ls=ls, label=n)
     ax.axhline(10.95, color=MUTED, lw=1, ls=(0, (1, 2)))
     ax.text(1.0, 10.95, " floor 10.95%", transform=ax.get_yaxis_transform(), va="center", fontsize=9, color=INK2)
     ax.axhline(0, color=AXIS, lw=1)
-    cap = 50  # 2021 peaks would flatten 2022-26; label the off-scale peak instead
-    peak = lines[0][1]
-    ax.set_ylim(min(-8, peak.min() - 2), cap)
-    ax.annotate(f"peak {peak.max():.0f}% ({peak.idxmax():%b %Y}), off scale", (peak.idxmax(), cap),
-                xytext=(60, -14), textcoords="offset points", fontsize=8.5, color=INK2,
-                arrowprops={"arrowstyle": "-", "color": MUTED, "lw": 0.8})
     ax.set_title("BTC funding vs cost of capital")
     ax.set_ylabel("% a year")
     ax.margins(x=0.01)
     ax.legend(loc="upper right")
     save(fig, "3_funding_vs_capital_cost.png")
-
-    # 4. MILP positions over time.
-    pos = positions
-    pos["week"] = pos["ts"].dt.tz_localize(None).dt.to_period("W").dt.start_time
-    by_coin = pos.groupby(["week", "coin"])["notional"].mean().unstack(fill_value=0) / 1e3
-    top15 = by_coin.sum().nlargest(15).index
-    days = pd.Index(milp.index[milp.index.hour == 0])
-    weeks = pd.Index(days.tz_localize(None).to_period("W").start_time.unique())
-    by_coin = by_coin.reindex(weeks, fill_value=0)
-    deployed = (pos.groupby("ts")["notional"].sum().reindex(days, fill_value=0) * 1.5 / NAV * 100)
-    deployed = deployed.groupby(deployed.index.tz_localize(None).to_period("W").start_time).mean()
-    npos = pos.groupby("ts").size().reindex(days, fill_value=0)
-    fig, (a1, a2) = plt.subplots(2, 1, figsize=(12, 7.5), height_ratios=[1, 2.2])
-    a1.fill_between(deployed.index, deployed, color=BLUE, alpha=0.25, lw=0)
-    a1.plot(deployed.index, deployed, color=BLUE)
-    a1.set_ylabel("% of capital")
-    a1.set_title(f"MILP: capital in positions (average {npos.mean():.1f} positions)")
-    a1.set_ylim(0, max(100, deployed.max()) * 1.08)
-    a1.margins(x=0)
-    m = by_coin[top15].T
-    im = a2.imshow(m.to_numpy(), aspect="auto", cmap=BLUES, interpolation="nearest",
-                   extent=[0, m.shape[1], m.shape[0], 0])
-    a2.set_yticks(np.arange(len(top15)) + 0.5, top15)
-    ticks = [i for i, w in enumerate(m.columns) if w.month in (1, 7) and w.day <= 7]
-    a2.set_xticks(ticks, [m.columns[i].strftime("%b %Y") for i in ticks])
-    a2.grid(False)
-    a2.set_title("MILP: weekly position by coin, $k (15 most used)")
-    fig.colorbar(im, ax=a2, fraction=0.025, pad=0.01, label="$k notional")
-    fig.tight_layout()
-    save(fig, "4_milp_positions.png")
-
-    # 5. MILP trading by type.
-    tr = trades["MILP"].copy()
-    tr["kind"] = tr["kind"].replace({"open": "Opens and closes", "close": "Opens and closes",
-                                     "resize": "Resizes", "liquidation": "Liquidations"})
-    monthly = tr.groupby([tr["ts"].dt.tz_localize(None).dt.to_period("M").dt.start_time, "kind"])["notional"] \
-        .sum().unstack(fill_value=0) / NAV * 100
-    kinds = [k for k in ["Opens and closes", "Resizes", "Liquidations"] if k in monthly]
-    fig, ax = plt.subplots(figsize=(12, 4.6))
-    base = np.zeros(len(monthly))
-    for k, c in zip(kinds, [NAVY, LIGHT, NEG], strict=False):
-        ax.bar(monthly.index, monthly[k], bottom=base, width=24, color=c, label=k, edgecolor=SURFACE, linewidth=1)
-        base += monthly[k].to_numpy()
-    counts = tr.groupby("kind").size()
-    yrs = (tr["ts"].max() - tr["ts"].min()).days / 365
-    ax.set_title("MILP: monthly trading")
-    ax.set_ylabel("% of capital traded")
-    ax.set_ylim(0, base.max() * 1.1)
-    ax.legend(loc="upper right", labels=[f"{k} ({counts.get(k, 0) / yrs:.0f} a year)" for k in kinds])
-    save(fig, "5_milp_trading.png")
 
 
 def margin_figure() -> None:
