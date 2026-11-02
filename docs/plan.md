@@ -292,7 +292,7 @@ every Phase 3 and Phase 4 variant.
 > capital transfers, added nothing (ablation A1, fixed 50/50 split: 0.60% vs 0.67% a year), so each venue
 > now runs its own MILP on $500k, like the Phase 3 rules. The 12-position cap becomes 6 per venue; the
 > transfer variables, transfer constraints and the 60% venue cap are dropped; A1 is dropped (it is now the
-> primary design). All earlier runs still count as trials. Multi-venue code and reports: git history (d47bd09).
+> primary design). All earlier runs still count as trials. Multi-venue code and reports: git history (f232ab5).
 
 **Cadence.** One optimisation per day at the 00:00 UTC close, executed at the next close (08:00),
 for both venues jointly. Solver: HiGHS, through `scipy.optimize.milp`.

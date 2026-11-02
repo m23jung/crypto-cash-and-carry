@@ -3,7 +3,7 @@
 Solved with HiGHS through scipy.optimize.milp. Per candidate coin the variables are x (target
 notional), b (buy), s (sell), y (position open, binary), t (position trades today, binary) and
 d (the trade is a buy, binary; stops a buy-and-sell wash from meeting the no-trade band).
-Each venue is its own book; the multi-venue version with capital transfers is in git history (d47bd09).
+Each venue is its own book; the multi-venue version with capital transfers is in git history (f232ab5).
 """
 
 from __future__ import annotations

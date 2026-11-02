@@ -37,7 +37,7 @@ OUT = Path("reports/phase4/report.md")
 CROSS_MARGIN = lambda c: 1.10 if c in MAJORS else 1.30  # noqa: E731
 PRIMARY = "P MILP"
 # Sharpes of the multi-venue runs made before the switch to single-venue books (reports in git history,
-# d47bd09): Phase 4 P, R1, R2, A1, A2, A3 and Phase 4b 4b-P, 4b-R1. Counted so the deflated Sharpe stays honest.
+# f232ab5): Phase 4 P, R1, R2, A1, A2, A3 and Phase 4b 4b-P, 4b-R1. Counted so the deflated Sharpe stays honest.
 EARLIER_TRIALS = [0.67, 1.00, 1.19, 0.52, 0.19, 0.83, 1.32, 1.18]
 
 
