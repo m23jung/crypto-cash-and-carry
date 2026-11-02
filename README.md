@@ -9,7 +9,7 @@ it. **They don't, after costs: the outcome is decided by capital structure, not 
 
 [![CI](https://github.com/m23jung/crypto-cash-and-carry/actions/workflows/ci.yml/badge.svg)](https://github.com/m23jung/crypto-cash-and-carry/actions/workflows/ci.yml)
 
-**Read the paper: [PDF](docs/paper.pdf) · [web version](docs/paper.md)** · October 2026
+**Read the paper: [PDF](docs/paper.pdf) · [web version](docs/paper.md) · [2-page summary](docs/summary.pdf)** · October 2026
 
 ![Cumulative excess return](reports/figures/1_cumulative_excess_return.png)
 
@@ -48,6 +48,7 @@ Details: [Phase 1](docs/phase1.md), [Phase 2](docs/phase2.md), [Phase 3](docs/ph
 | | |
 |---|---|
 | [docs/paper.md](docs/paper.md) | **The paper**: question, data, protocol, results, limitations |
+| [docs/summary.md](docs/summary.md) | Two-page summary of the paper |
 | [docs/plan.md](docs/plan.md) | Research questions, hypothesis, background, data, phases, go/no-go rule, pivot plan |
 | [docs/decisions.md](docs/decisions.md) | Dated log of every analysis decision |
 | [docs/phase1.md](docs/phase1.md) | Phase 1 findings and interpretation |
